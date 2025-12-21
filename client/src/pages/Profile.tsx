@@ -1,15 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
-import { Lock, Bell, LogOut, ChevronRight, User, Shield, HelpCircle, FileText } from "lucide-react";
-import { useState } from "react";
+import { Lock, Bell, LogOut, ChevronRight, User, Shield, HelpCircle, FileText, Phone, Mail, MapPin, Camera, Edit2 } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * Profile Page
- * Design: Mobile-native banking app style
- * - User info header
+ * Design: Mobile-native banking app style matching reference designs
+ * - Green gradient header with profile
+ * - Contact info section
  * - Settings menu list
- * - Quick actions
  */
 export default function Profile() {
   const [, setLocation] = useLocation();
@@ -18,7 +17,9 @@ export default function Profile() {
     firstName: "John",
     lastName: "Doe",
     email: "john@example.com",
-    phone: "+260 123 456 789"
+    phone: "+260 123 456 789",
+    address: "123 Cairo Road, Lusaka",
+    initials: "JD"
   };
 
   const menuItems = [
@@ -26,110 +27,154 @@ export default function Profile() {
       icon: User,
       label: "Personal Details",
       description: "Name, email, phone",
-      action: () => {}
+      action: () => toast.info("Feature coming soon")
     },
     {
       icon: Lock,
       label: "Change PIN",
       description: "Update your login PIN",
-      action: () => {}
+      action: () => toast.info("Feature coming soon")
     },
     {
       icon: Bell,
       label: "Notifications",
       description: "Payment reminders, alerts",
-      action: () => {}
+      action: () => toast.info("Feature coming soon")
     },
     {
       icon: Shield,
       label: "Security",
       description: "2FA, active sessions",
-      action: () => {}
+      action: () => toast.info("Feature coming soon")
     },
     {
       icon: FileText,
       label: "Documents",
       description: "KYC, uploaded files",
-      action: () => {}
+      action: () => setLocation("/kyc")
     },
     {
       icon: HelpCircle,
       label: "Help & Support",
       description: "FAQs, contact us",
-      action: () => {}
+      action: () => toast.info("Feature coming soon")
     }
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-primary pt-safe">
-        <div className="px-5 pt-6 pb-8">
-          <h1 className="text-white font-bold text-lg text-center mb-6">Profile</h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Green gradient */}
+      <header className="bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] text-white">
+        <div className="px-5 pt-6 pb-10">
+          <h1 className="text-2xl font-bold mb-6">Profile</h1>
           
           {/* Profile Card */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl font-bold text-white">
-                {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
-              </span>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30">
+                <span className="text-2xl font-bold text-white">{profile.initials}</span>
+              </div>
+              <button className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
+                <Camera className="w-4 h-4 text-primary" />
+              </button>
             </div>
-            <h2 className="text-white font-bold text-lg">
-              {profile.firstName} {profile.lastName}
-            </h2>
-            <p className="text-white/70 text-sm">{profile.email}</p>
-            <p className="text-white/70 text-sm">{profile.phone}</p>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold">{profile.firstName} {profile.lastName}</h2>
+              <p className="text-white/70 text-sm">{profile.email}</p>
+            </div>
+            <button 
+              onClick={() => toast.info("Feature coming soon")}
+              className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="px-4 -mt-2 pb-8">
-        {/* Menu Items */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          {menuItems.map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.label}
-                onClick={item.action}
-                className={`w-full flex items-center gap-4 p-4 text-left active:bg-slate-50 transition-colors ${
-                  index !== menuItems.length - 1 ? "border-b border-slate-100" : ""
-                }`}
-              >
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-slate-900 text-sm">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.description}</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-slate-400" />
-              </button>
-            );
-          })}
+      <main className="px-5 -mt-4 pb-8 space-y-4">
+        {/* Contact Info Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Contact Information</h3>
+          </div>
+          <div className="divide-y divide-gray-100">
+            <div className="flex items-center gap-4 p-4">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <Phone className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Phone Number</p>
+                <p className="font-medium text-gray-900">{profile.phone}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <Mail className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Email Address</p>
+                <p className="font-medium text-gray-900">{profile.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Address</p>
+                <p className="font-medium text-gray-900">{profile.address}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* App Info */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-slate-400 mb-4">Goodleaf Loans v1.0.0</p>
-          
-          {/* Logout Button */}
-          <Button
-            onClick={() => setLocation("/login")}
-            variant="outline"
-            className="w-full rounded-xl border-2 border-red-200 text-red-600 hover:bg-red-50 font-semibold h-12"
-          >
-            <LogOut className="w-5 h-5 mr-2" />
-            Sign Out
-          </Button>
+        {/* Settings Menu */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Settings</h3>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {menuItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.label}
+                  onClick={item.action}
+                  className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                >
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium text-gray-900">{item.label}</p>
+                    <p className="text-sm text-gray-500">{item.description}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Legal Links */}
-        <div className="mt-6 flex justify-center gap-4">
-          <button className="text-xs text-slate-500">Terms of Service</button>
-          <span className="text-slate-300">•</span>
-          <button className="text-xs text-slate-500">Privacy Policy</button>
+        {/* Logout Button */}
+        <button
+          onClick={() => setLocation("/login")}
+          className="w-full flex items-center justify-center gap-3 p-4 bg-red-50 rounded-2xl text-red-600 font-semibold hover:bg-red-100 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
+
+        {/* App Version & Legal */}
+        <div className="text-center pt-4">
+          <p className="text-sm text-gray-400 mb-3">Goodleaf Loans v1.0.0</p>
+          <div className="flex justify-center gap-4">
+            <button className="text-xs text-gray-500 hover:text-primary">Terms of Service</button>
+            <span className="text-gray-300">•</span>
+            <button className="text-xs text-gray-500 hover:text-primary">Privacy Policy</button>
+          </div>
         </div>
       </main>
     </div>

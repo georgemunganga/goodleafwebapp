@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, Search, X, FileText } from "lucide-react";
 import { useState } from "react";
 
 interface Loan {
@@ -15,15 +15,15 @@ interface Loan {
 
 /**
  * Loan History Page
- * Design: Mobile-native banking app style
- * - Clean list with status indicators
+ * Design: Mobile-native banking app style matching reference designs
+ * - Green gradient header
  * - Search and filter functionality
+ * - Loan cards with status badges
  */
 export default function LoanHistory() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [showFilters, setShowFilters] = useState(false);
 
   const loans: Loan[] = [
     {
@@ -81,7 +81,7 @@ export default function LoanHistory() {
       case "pending":
         return "bg-amber-100 text-amber-700";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -94,130 +94,135 @@ export default function LoanHistory() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
-        <div className="px-4 py-4">
-          <h1 className="text-xl font-bold text-slate-900 text-center">
-            My Loans
-          </h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Green gradient */}
+      <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white">
+        <div className="px-5 pt-6 pb-6">
+          <h1 className="text-2xl font-bold mb-1">My Loans</h1>
+          <p className="text-white/70">View and manage your loans</p>
         </div>
+      </header>
 
-        {/* Search Bar */}
-        <div className="px-4 pb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+      {/* Search and Filter Card */}
+      <div className="px-5 -mt-3">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          {/* Search Bar */}
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search loans..."
+              placeholder="Search by loan ID or type..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-0 text-sm bg-slate-50"
+              className="w-full pl-12 pr-10 py-3 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
+                className="absolute right-4 top-1/2 -translate-y-1/2 hover:bg-gray-100 rounded-full p-1"
               >
-                <X className="w-4 h-4 text-slate-400" />
+                <X className="w-4 h-4 text-gray-400" />
               </button>
             )}
           </div>
-        </div>
 
-        {/* Filter Pills */}
-        <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar">
-          {statusFilters.map((filter) => (
-            <button
-              key={filter.value}
-              onClick={() => setFilterStatus(filter.value)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                filterStatus === filter.value
-                  ? "bg-primary text-white"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
+          {/* Filter Pills */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {statusFilters.map((filter) => (
+              <button
+                key={filter.value}
+                onClick={() => setFilterStatus(filter.value)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  filterStatus === filter.value
+                    ? "bg-primary text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="px-4 py-4">
+      <main className="px-5 py-6">
         {/* Results Count */}
-        <p className="text-xs text-slate-500 mb-3">
+        <p className="text-sm text-gray-500 mb-4">
           {filteredLoans.length} loan{filteredLoans.length !== 1 ? "s" : ""} found
         </p>
 
         {/* Loans List */}
         {filteredLoans.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {filteredLoans.map((loan) => (
               <button
                 key={loan.id}
                 onClick={() => setLocation(`/loans/${loan.id}`)}
-                className="w-full bg-white rounded-2xl border border-slate-100 p-4 text-left active:scale-[0.98] transition-transform shadow-sm"
+                className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform shadow-sm hover:border-primary/30"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm">
-                      {loan.type}
-                    </h3>
-                    <p className="text-xs text-slate-500">{loan.id}</p>
+                    <h3 className="font-bold text-gray-900">{loan.type}</h3>
+                    <p className="text-sm text-gray-500">{loan.id}</p>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getStatusStyle(loan.status)}`}>
-                    {loan.status === "approved" ? "Active" : loan.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(loan.status)}`}>
+                      {loan.status === "approved" ? "Active" : loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                    </span>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </div>
                 </div>
 
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Amount</p>
-                    <p className="font-bold text-slate-900">K{loan.amount.toLocaleString()}</p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-500 mb-1">Loan Amount</p>
+                    <p className="font-bold text-gray-900">K{loan.amount.toLocaleString()}</p>
                   </div>
-                  {loan.outstanding !== undefined && (
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Outstanding</p>
+                  {loan.outstanding !== undefined ? (
+                    <div className="bg-primary/5 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Outstanding</p>
                       <p className="font-bold text-primary">K{loan.outstanding.toLocaleString()}</p>
                     </div>
-                  )}
-                  {loan.status === "repaid" && (
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Completed</p>
+                  ) : loan.status === "repaid" ? (
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Completed</p>
                       <p className="font-bold text-green-600">{loan.date}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">Applied</p>
+                      <p className="font-bold text-gray-900">{loan.date}</p>
                     </div>
                   )}
                 </div>
 
                 {loan.progress !== undefined && loan.status !== "rejected" && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div 
                         className={`h-full rounded-full ${loan.status === "repaid" ? "bg-green-500" : "bg-primary"}`}
                         style={{ width: `${loan.progress}%` }}
                       ></div>
                     </div>
-                    <span className="text-xs text-slate-500">{loan.progress}%</span>
+                    <span className="text-xs text-gray-500 font-medium">{loan.progress}% paid</span>
                   </div>
                 )}
               </button>
             ))}
           </div>
         ) : (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-8 h-8 text-slate-400" />
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="font-bold text-slate-900 mb-1">
-              No loans found
-            </h3>
-            <p className="text-sm text-slate-500 mb-6">
-              Try adjusting your search or filters
+            <h3 className="font-bold text-gray-900 mb-1">No Loans Found</h3>
+            <p className="text-gray-500 text-sm mb-6">
+              {searchTerm ? "Try adjusting your search or filters" : "You don't have any loans yet"}
             </p>
             <Button
               onClick={() => setLocation("/apply")}
-              className="rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-10 px-6 text-sm"
+              className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6"
             >
               Apply for a Loan
             </Button>

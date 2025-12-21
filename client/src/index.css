@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Avenir Font Face */
+@font-face {
+  font-family: 'Avenir';
+  src: url('/fonts/avenir_roman_12.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -40,6 +49,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: 'Avenir', system-ui, -apple-system, sans-serif;
 }
 
 :root {
@@ -52,96 +62,49 @@
   --chart-3: #1d4a2f;
   --chart-4: #28ca33;
   --chart-5: #2e7146;
-  --radius: 1.25rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: #28ca33;
+  --radius: 0.75rem;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --secondary: #f5f5f5;
   --secondary-foreground: #2e7146;
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: #ffc107;
+  --muted: #f5f5f5;
+  --muted-foreground: #6b7280;
+  --accent: #e8f5e9;
   --accent-foreground: #2e7146;
   --destructive: #dc3545;
   --destructive-foreground: #ffffff;
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
-}
-
-.dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #2e7146;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-accent: #e8f5e9;
+  --sidebar-accent-foreground: #2e7146;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #2e7146;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-family: 'Avenir', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
-    @apply bg-background text-foreground font-sans;
-    font-family: 'Avenir', sans-serif;
+    @apply bg-background text-foreground;
+    font-family: 'Avenir', system-ui, -apple-system, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Avenir', sans-serif;
+    font-family: 'Avenir', system-ui, -apple-system, sans-serif;
     font-weight: 700;
-  }
-  h1 {
-    @apply text-4xl md:text-5xl;
-  }
-  h2 {
-    @apply text-3xl md:text-4xl;
-  }
-  h3 {
-    @apply text-2xl md:text-3xl;
-  }
-  h4 {
-    @apply text-xl md:text-2xl;
-  }
-  h5 {
-    @apply text-lg md:text-xl;
-  }
-  h6 {
-    @apply text-base md:text-lg;
+    letter-spacing: -0.02em;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -157,24 +120,11 @@
 }
 
 @layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
   .container {
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
     padding-right: 1rem;
   }
 
@@ -183,18 +133,118 @@
     min-width: 0;
   }
 
+  /* App Header - Green gradient header */
+  .app-header {
+    @apply bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Primary Button - Full width green rounded */
+  .btn-primary {
+    @apply w-full bg-primary text-white font-medium py-4 rounded-xl;
+    @apply hover:bg-[#256339] active:bg-[#1d4a2f] transition-colors;
+  }
+
+  /* Secondary Button - Outlined */
+  .btn-secondary {
+    @apply w-full border-2 border-primary text-primary font-medium py-4 rounded-xl;
+    @apply hover:bg-primary/5 active:bg-primary/10 transition-colors;
+  }
+
+  /* Form Input - Bordered style */
+  .form-input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg;
+    @apply focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none;
+    @apply transition-all duration-200;
+  }
+
+  /* Card Style */
+  .app-card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4;
+  }
+
+  /* Upload Box - Dashed border */
+  .upload-box {
+    @apply border-2 border-dashed border-primary/40 rounded-xl p-6;
+    @apply flex flex-col items-center justify-center gap-2;
+    @apply hover:border-primary hover:bg-primary/5 transition-all cursor-pointer;
+  }
+
+  /* Menu List Item */
+  .menu-item {
+    @apply flex items-center justify-between py-4 px-4;
+    @apply hover:bg-gray-50 active:bg-gray-100 transition-colors;
+  }
+
+  /* Timeline Item */
+  .timeline-item {
+    @apply relative pl-8 pb-6;
+  }
+  .timeline-item::before {
+    content: '';
+    @apply absolute left-2 top-2 w-3 h-3 rounded-full bg-primary;
+  }
+  .timeline-item::after {
+    content: '';
+    @apply absolute left-[0.9rem] top-5 w-0.5 h-full bg-gray-200;
+  }
+  .timeline-item:last-child::after {
+    display: none;
+  }
+  .timeline-item.completed::before {
+    @apply bg-primary;
+  }
+  .timeline-item.pending::before {
+    @apply bg-gray-300 border-2 border-gray-300;
+  }
+
+  /* Progress Steps */
+  .progress-steps {
+    @apply flex gap-2;
+  }
+  .progress-step {
+    @apply h-1.5 flex-1 rounded-full bg-gray-200;
+  }
+  .progress-step.active {
+    @apply bg-primary;
+  }
+
+  /* Bottom Navigation */
+  .bottom-nav {
+    @apply fixed bottom-4 left-4 right-4 bg-primary rounded-2xl;
+    @apply flex items-center justify-around py-3 px-4;
+    @apply shadow-lg shadow-primary/30;
+    z-index: 50;
+  }
+  .bottom-nav-item {
+    @apply flex flex-col items-center gap-1 text-white/70;
+    @apply transition-all duration-200;
+  }
+  .bottom-nav-item.active {
+    @apply text-white;
+  }
+  .bottom-nav-item span {
+    @apply text-xs font-medium;
+  }
+
   @media (min-width: 640px) {
     .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-left: 1.5rem;
       padding-right: 1.5rem;
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 2rem; /* 32px - desktop padding */
+      padding-left: 2rem;
       padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
+      max-width: 1280px;
+    }
+    .bottom-nav {
+      display: none;
     }
   }
 }
