@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Login from "./pages/Login";
@@ -20,7 +20,12 @@ import AppLayout from "./components/AppLayout";
 function AppRouter() {
   return (
     <Switch>
-      {/* Auth Pages */}
+      {/* Root redirect to login */}
+      <Route path={"/"}>
+        {() => <Redirect to="/login" />}
+      </Route>
+
+      {/* Auth Pages - No Layout */}
       <Route path={"/login"} component={Login} />
       
       {/* App Pages with Layout */}
@@ -56,13 +61,8 @@ function AppRouter() {
         )}
       </Route>
 
-      <Route path={"/apply"}>
-        {() => (
-          <AppLayout>
-            <LoanApplication />
-          </AppLayout>
-        )}
-      </Route>
+      {/* Loan Application - No AppLayout for cleaner wizard experience */}
+      <Route path={"/apply"} component={LoanApplication} />
 
       <Route path={"/check-eligibility"}>
         {() => (
@@ -72,13 +72,7 @@ function AppRouter() {
         )}
       </Route>
 
-      <Route path={"/kyc"}>
-        {() => (
-          <AppLayout>
-            <KYCWorkflow />
-          </AppLayout>
-        )}
-      </Route>
+      <Route path={"/kyc"} component={KYCWorkflow} />
 
       <Route path={"/repayment"}>
         {() => (

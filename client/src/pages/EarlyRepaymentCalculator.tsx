@@ -1,15 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
-import { ChevronLeft, TrendingDown, Zap } from "lucide-react";
+import { ChevronLeft, TrendingDown, Zap, Check } from "lucide-react";
 import { useState } from "react";
 
 /**
  * Early Repayment Calculator Page
- * Design: Mobile-first responsive with modern branding
- * - Payment amount input
+ * Design: Mobile-native banking app style
+ * - Payment type selection
  * - Real-time calculation
- * - Settlement quote
+ * - Settlement benefits
  */
 export default function EarlyRepaymentCalculator() {
   const [, setLocation] = useLocation();
@@ -22,203 +22,169 @@ export default function EarlyRepaymentCalculator() {
     totalRepayment: 11000,
     monthlyPayment: 916.67,
     remainingMonths: 12,
-    interestRate: 15,
-    nextPaymentDate: "Jan 31, 2025"
+    interestRate: 15
   };
 
-  const amount = parseFloat(paymentAmount) || 0;
-  const interestSavings = calculationType === "full" 
-    ? (loanInfo.totalRepayment - loanInfo.outstanding)
-    : (amount / loanInfo.outstanding) * (loanInfo.totalRepayment - loanInfo.outstanding);
-  
+  const amount = calculationType === "full" ? loanInfo.outstanding : (parseFloat(paymentAmount) || 0);
+  const interestSavings = (amount / loanInfo.outstanding) * (loanInfo.totalRepayment - loanInfo.outstanding);
   const newOutstanding = Math.max(0, loanInfo.outstanding - amount);
-  const newRemainingMonths = calculationType === "full" 
-    ? 0
-    : Math.ceil((newOutstanding / loanInfo.monthlyPayment));
-  
-  const newFinalDate = new Date();
-  newFinalDate.setMonth(newFinalDate.getMonth() + newRemainingMonths);
-
-  const fullSettlementAmount = loanInfo.outstanding;
+  const newRemainingMonths = calculationType === "full" ? 0 : Math.ceil((newOutstanding / loanInfo.monthlyPayment));
+  const monthsSaved = loanInfo.remainingMonths - newRemainingMonths;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container flex items-center justify-between h-14 md:h-20 px-4 md:px-6">
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
+        <div className="flex items-center h-14 px-4">
           <button
-            onClick={() => setLocation("/dashboard")}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            onClick={() => setLocation("/loans/1")}
+            className="w-10 h-10 flex items-center justify-center -ml-2"
           >
-            <ChevronLeft className="w-6 h-6 text-slate-900" />
-            <span className="text-sm md:text-base font-semibold text-slate-900">Back</span>
+            <ChevronLeft className="w-6 h-6 text-slate-700" />
           </button>
-          <h1 className="text-lg md:text-2xl font-bold text-slate-900">Early Settlement</h1>
-          <div className="w-8 h-8"></div>
+          <h1 className="flex-1 text-center font-bold text-slate-900">
+            Early Settlement
+          </h1>
+          <div className="w-10"></div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container px-4 md:px-6 py-6 md:py-12">
-        <div className="max-w-2xl mx-auto space-y-6 md:space-y-8">
-          {/* Loan Info Card */}
-          <div className="p-6 md:p-8 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-3xl border-2 border-primary/20">
-            <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-              Current Loan Status
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-              <div>
-                <p className="text-xs text-slate-600 mb-1">Loan ID</p>
-                <p className="font-bold text-slate-900 text-sm md:text-base">
-                  {loanInfo.loanId}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-1">Outstanding Balance</p>
-                <p className="font-bold text-primary text-sm md:text-base">
-                  K{loanInfo.outstanding.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-1">Remaining Months</p>
-                <p className="font-bold text-slate-900 text-sm md:text-base">
-                  {loanInfo.remainingMonths}
-                </p>
-              </div>
+      <main className="flex-1 px-4 py-6 pb-24 space-y-4">
+        {/* Current Loan Status */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-500">{loanInfo.loanId}</p>
+            <p className="text-xs text-slate-500">{loanInfo.remainingMonths} months left</p>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <div>
+              <p className="text-xs text-slate-500">Outstanding Balance</p>
+              <p className="text-2xl font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500">Interest Rate</p>
+              <p className="font-bold text-slate-900">{loanInfo.interestRate}%</p>
             </div>
           </div>
+        </div>
 
-          {/* Calculator Type Selection */}
-          <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-slate-200">
-            <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-              Repayment Type
-            </h3>
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              {[
-                { value: "partial", label: "Partial Payment" },
-                { value: "full", label: "Full Settlement" }
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setCalculationType(option.value as any)}
-                  className={`p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 font-semibold transition-all text-sm md:text-base ${
-                    calculationType === option.value
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-primary/30"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Payment Amount Input */}
-          <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-slate-200">
-            <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-              {calculationType === "full" ? "Full Settlement Amount" : "Payment Amount"}
-            </h3>
-            
-            {calculationType === "full" ? (
-              <div className="p-4 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-200">
-                <p className="text-xs text-slate-600 mb-2">Full Settlement Amount</p>
-                <p className="text-3xl md:text-4xl font-bold text-primary">
-                  K{fullSettlementAmount.toLocaleString()}
-                </p>
-                <p className="text-xs md:text-sm text-slate-600 mt-3">
-                  This is the exact amount needed to fully settle your loan
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  className="h-12 md:h-14 rounded-full border-2 border-slate-200 focus:border-primary focus:ring-0 text-base md:text-lg font-bold"
-                />
-                <p className="text-xs md:text-sm text-slate-600">
-                  Maximum: K{loanInfo.outstanding.toLocaleString()}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Calculation Results */}
-          <div className="space-y-4 md:space-y-6">
-            <h3 className="font-bold text-slate-900 text-lg md:text-xl">
-              Impact of This Payment
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <div className="p-4 md:p-6 bg-white rounded-2xl md:rounded-3xl border-2 border-slate-200">
-                <p className="text-xs text-slate-600 mb-2">New Outstanding Balance</p>
-                <p className="text-2xl md:text-3xl font-bold text-primary">
-                  K{newOutstanding.toLocaleString()}
-                </p>
-              </div>
-
-              <div className="p-4 md:p-6 bg-white rounded-2xl md:rounded-3xl border-2 border-secondary/30">
-                <p className="text-xs text-slate-600 mb-2">Interest Savings</p>
-                <p className="text-2xl md:text-3xl font-bold text-secondary">
-                  K{interestSavings.toFixed(2)}
-                </p>
-              </div>
-
-              <div className="p-4 md:p-6 bg-white rounded-2xl md:rounded-3xl border-2 border-slate-200">
-                <p className="text-xs text-slate-600 mb-2">Remaining Months</p>
-                <p className="text-2xl md:text-3xl font-bold text-slate-900">
-                  {newRemainingMonths}
-                </p>
-              </div>
-
-              <div className="p-4 md:p-6 bg-white rounded-2xl md:rounded-3xl border-2 border-slate-200">
-                <p className="text-xs text-slate-600 mb-2">New Final Payment Date</p>
-                <p className="text-lg md:text-xl font-bold text-slate-900">
-                  {newFinalDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Benefits Box */}
-          <div className="p-6 md:p-8 bg-green-50 rounded-3xl border-2 border-green-200">
-            <div className="flex items-start gap-3 md:gap-4 mb-4">
-              <Zap className="w-6 h-6 md:w-8 md:h-8 text-green-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold text-green-900 text-base md:text-lg mb-2">
-                  Benefits of Early Repayment
-                </h4>
-                <ul className="text-xs md:text-sm text-green-800 space-y-2">
-                  <li>✓ Save K{interestSavings.toFixed(2)} in interest charges</li>
-                  <li>✓ Reduce your loan tenure by {loanInfo.remainingMonths - newRemainingMonths} months</li>
-                  <li>✓ Improve your credit profile</li>
-                  <li>✓ No prepayment penalties</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 md:gap-4">
-            <Button
-              onClick={() => setLocation("/dashboard")}
-              variant="outline"
-              className="flex-1 rounded-full border-2 border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold py-2 md:py-3 h-10 md:h-12 text-sm md:text-base"
+        {/* Repayment Type Selection */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-bold text-slate-900 mb-3 text-sm">Choose Option</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setCalculationType("partial")}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                calculationType === "partial"
+                  ? "border-primary bg-primary/5"
+                  : "border-slate-200"
+              }`}
             >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => setLocation("/repayment")}
-              className="flex-1 rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-2 md:py-3 h-10 md:h-12 text-sm md:text-base flex items-center justify-center gap-2"
+              <p className={`font-semibold text-sm ${calculationType === "partial" ? "text-primary" : "text-slate-700"}`}>
+                Partial Payment
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Pay any amount</p>
+            </button>
+            <button
+              onClick={() => setCalculationType("full")}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                calculationType === "full"
+                  ? "border-primary bg-primary/5"
+                  : "border-slate-200"
+              }`}
             >
-              <TrendingDown className="w-4 h-4 md:w-5 md:h-5" />
-              Proceed to Payment
-            </Button>
+              <p className={`font-semibold text-sm ${calculationType === "full" ? "text-primary" : "text-slate-700"}`}>
+                Full Settlement
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Close loan</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Payment Amount */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-bold text-slate-900 mb-3 text-sm">
+            {calculationType === "full" ? "Settlement Amount" : "Payment Amount"}
+          </h3>
+          
+          {calculationType === "full" ? (
+            <div className="bg-primary/5 rounded-xl p-4 text-center">
+              <p className="text-3xl font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</p>
+              <p className="text-xs text-slate-600 mt-1">Full settlement amount</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter amount"
+                className="h-12 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0 text-xl font-bold text-center"
+              />
+              <p className="text-xs text-slate-500 text-center">
+                Max: K{loanInfo.outstanding.toLocaleString()}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Impact Summary */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-bold text-slate-900 mb-3 text-sm">Impact Summary</h3>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-green-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-green-700">Interest Savings</p>
+              <p className="text-xl font-bold text-green-600">K{interestSavings.toFixed(0)}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-blue-700">Months Saved</p>
+              <p className="text-xl font-bold text-blue-600">{monthsSaved}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-600">New Balance</p>
+              <p className="text-xl font-bold text-slate-900">K{newOutstanding.toLocaleString()}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-600">Remaining</p>
+              <p className="text-xl font-bold text-slate-900">{newRemainingMonths} mo</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Benefits */}
+        <div className="bg-green-50 rounded-2xl border border-green-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-5 h-5 text-green-600" />
+            <h3 className="font-bold text-green-800 text-sm">Benefits</h3>
+          </div>
+          <div className="space-y-2">
+            {[
+              `Save K${interestSavings.toFixed(0)} in interest`,
+              "No prepayment penalties",
+              "Improve your credit profile",
+              calculationType === "full" ? "Close your loan today" : `Reduce tenure by ${monthsSaved} months`
+            ].map((benefit, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-600" />
+                <p className="text-xs text-green-800">{benefit}</p>
+              </div>
+            ))}
           </div>
         </div>
       </main>
+
+      {/* Fixed Bottom Action */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 safe-area-bottom">
+        <Button
+          onClick={() => setLocation("/repayment")}
+          className="w-full rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-12"
+        >
+          <TrendingDown className="w-5 h-5 mr-2" />
+          Proceed to Payment
+        </Button>
+      </div>
     </div>
   );
 }

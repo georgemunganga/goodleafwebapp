@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation } from "wouter";
-import { Home, CreditCard, User, LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { Home, CreditCard, User, LogOut } from "lucide-react";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -9,12 +8,13 @@ interface AppLayoutProps {
 
 /**
  * AppLayout Component
- * Provides mobile bottom navigation and desktop sidebar
- * Mobile-first responsive design
+ * Mobile-first design matching industry banking apps
+ * - Floating green bottom nav on mobile (no sidebar)
+ * - Desktop sidebar navigation
+ * - Native app feel on mobile
  */
 export default function AppLayout({ children }: AppLayoutProps) {
   const [, setLocation] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation()[0];
 
   const navItems = [
@@ -23,12 +23,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { path: "/profile", label: "Profile", icon: User }
   ];
 
-  const isActive = (path: string) => location === path;
+  const isActive = (path: string) => {
+    if (path === "/dashboard") return location === path || location === "/";
+    if (path === "/loans") return location.startsWith("/loans");
+    return location === path;
+  };
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-slate-200">
+    <div className="flex min-h-screen bg-slate-50">
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-30">
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
           <button
@@ -44,7 +48,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-6 space-y-2">
+        <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
@@ -52,13 +56,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <button
                 key={item.path}
                 onClick={() => setLocation(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium transition-all ${
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-slate-700 hover:bg-slate-100"
+                    ? "bg-primary text-white shadow-md"
+                    : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className={`w-5 h-5 ${active ? "text-white" : ""}`} />
                 <span>{item.label}</span>
               </button>
             );
@@ -66,95 +70,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </nav>
 
         {/* Logout */}
-        <div className="p-6 border-t border-slate-200">
+        <div className="p-4 border-t border-slate-200">
           <button
             onClick={() => setLocation("/login")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium text-destructive hover:bg-destructive/5 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 h-14">
-        <div className="flex items-center justify-between h-full px-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-slate-100 rounded-lg"
-          >
-            {sidebarOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
-          <img 
-            src="/logo-dark.svg" 
-            alt="Goodleaf" 
-            className="h-8"
-          />
-          <div className="w-10"></div>
-        </div>
-      </div>
-
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        ></div>
-      )}
-
-      {/* Mobile Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 transform transition-transform md:hidden ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <div className="p-6 border-b border-slate-200 mt-14">
-          <button
-            onClick={() => setLocation("/dashboard")}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-          >
-            <img 
-              src="/logo-dark.svg" 
-              alt="Goodleaf" 
-              className="h-10"
-            />
-          </button>
-        </div>
-
-        <nav className="p-6 space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
-            return (
-              <button
-                key={item.path}
-                onClick={() => {
-                  setLocation(item.path);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium transition-all ${
-                  active
-                    ? "bg-primary/10 text-primary"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-slate-200 bg-white">
-          <button
-            onClick={() => {
-              setLocation("/login");
-              setSidebarOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium text-destructive hover:bg-destructive/5 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
           >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>
@@ -163,14 +82,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto pt-14 md:pt-0 pb-20 md:pb-0">
+      <main className="flex-1 lg:ml-64">
+        {/* Content Area - Extra padding at bottom for mobile nav */}
+        <div className="min-h-screen pb-24 lg:pb-0">
           {children}
         </div>
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40">
+        {/* Mobile Floating Bottom Navigation */}
+        <nav className="lg:hidden fixed bottom-4 left-4 right-4 bg-primary rounded-2xl shadow-xl shadow-primary/30 z-50">
           <div className="flex items-center justify-around h-16">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -179,14 +98,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <button
                   key={item.path}
                   onClick={() => setLocation(item.path)}
-                  className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${
+                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all ${
                     active
-                      ? "text-primary"
-                      : "text-slate-600 hover:text-slate-900"
+                      ? "text-white"
+                      : "text-white/60 hover:text-white/80"
                   }`}
                 >
-                  <Icon className="w-6 h-6" />
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <div className={`p-1.5 rounded-xl transition-all ${active ? "bg-white/20" : ""}`}>
+                    <Icon className={`w-5 h-5 ${active ? "scale-110" : ""} transition-transform`} />
+                  </div>
+                  <span className={`text-[10px] font-semibold ${active ? "opacity-100" : "opacity-70"}`}>
+                    {item.label}
+                  </span>
                 </button>
               );
             })}

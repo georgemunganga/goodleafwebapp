@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ChevronLeft, CreditCard, FileText, TrendingDown } from "lucide-react";
+import { ChevronLeft, CreditCard, TrendingDown, FileText, Check, Clock, Circle } from "lucide-react";
 
 /**
  * Loan Details Page
- * Design: Mobile-first responsive with modern branding
- * - Loan summary
+ * Design: Mobile-native banking app style
+ * - Loan summary header
+ * - Progress visualization
  * - Repayment schedule
- * - Action buttons
  */
 export default function LoanDetails() {
   const [, setLocation] = useLocation();
@@ -22,234 +22,191 @@ export default function LoanDetails() {
     outstanding: 7500,
     nextPayment: "Jan 31, 2025",
     amountDue: 916.67,
-    status: "active"
+    status: "active",
+    progress: 25
   };
 
   const schedule = [
-    { date: "Dec 31, 2024", principal: 750, interest: 166.67, status: "paid" },
-    { date: "Jan 31, 2025", principal: 750, interest: 166.67, status: "due" },
-    { date: "Feb 28, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Mar 31, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Apr 30, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "May 31, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Jun 30, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Jul 31, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Aug 31, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Sep 30, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Oct 31, 2025", principal: 750, interest: 166.67, status: "upcoming" },
-    { date: "Nov 30, 2025", principal: 750, interest: 166.67, status: "upcoming" }
+    { date: "Dec 31, 2024", amount: 916.67, status: "paid" },
+    { date: "Jan 31, 2025", amount: 916.67, status: "due" },
+    { date: "Feb 28, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Mar 31, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Apr 30, 2025", amount: 916.67, status: "upcoming" },
+    { date: "May 31, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Jun 30, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Jul 31, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Aug 31, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Sep 30, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Oct 31, 2025", amount: 916.67, status: "upcoming" },
+    { date: "Nov 30, 2025", amount: 916.67, status: "upcoming" }
   ];
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case "paid":
-        return "bg-green-50 border-green-200";
+        return <Check className="w-4 h-4 text-white" />;
       case "due":
-        return "bg-accent/10 border-accent/30";
-      case "upcoming":
-        return "bg-white border-slate-200";
+        return <Clock className="w-4 h-4 text-white" />;
       default:
-        return "bg-white border-slate-200";
+        return <Circle className="w-3 h-3 text-slate-400" />;
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBg = (status: string) => {
     switch (status) {
       case "paid":
-        return <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">Paid</span>;
+        return "bg-green-500";
       case "due":
-        return <span className="text-xs font-semibold text-accent bg-accent/20 px-2 py-1 rounded-full">Due</span>;
-      case "upcoming":
-        return <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">Upcoming</span>;
+        return "bg-amber-500";
       default:
-        return null;
+        return "bg-slate-200";
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container flex items-center justify-between h-14 md:h-20 px-4 md:px-6">
+      <header className="bg-primary pt-safe">
+        <div className="px-4 py-4 flex items-center">
           <button
             onClick={() => setLocation("/loans")}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="w-10 h-10 flex items-center justify-center -ml-2"
           >
-            <ChevronLeft className="w-6 h-6 text-slate-900" />
-            <span className="text-sm md:text-base font-semibold text-slate-900">Back</span>
+            <ChevronLeft className="w-6 h-6 text-white" />
           </button>
-          <h1 className="text-lg md:text-2xl font-bold text-slate-900">{loan.id}</h1>
-          <div className="w-8 h-8"></div>
+          <h1 className="flex-1 text-center font-bold text-white">
+            Loan Details
+          </h1>
+          <div className="w-10"></div>
+        </div>
+
+        {/* Loan Summary */}
+        <div className="px-5 pb-6">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-white/70 text-xs">{loan.id}</p>
+                <h2 className="text-white font-bold text-lg">{loan.type}</h2>
+              </div>
+              <span className="px-2.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">
+                Active
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-white/70 text-[10px] uppercase tracking-wide">Loan Amount</p>
+                <p className="text-white font-bold text-xl">K{loan.amount.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-white/70 text-[10px] uppercase tracking-wide">Outstanding</p>
+                <p className="text-white font-bold text-xl">K{loan.outstanding.toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-white rounded-full"
+                  style={{ width: `${loan.progress}%` }}
+                ></div>
+              </div>
+              <span className="text-white text-xs font-medium">{loan.progress}% paid</span>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container px-4 md:px-6 py-6 md:py-12">
-        <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
-          {/* Loan Summary Card */}
-          <div className="p-6 md:p-8 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-3xl border-2 border-primary/20">
-            <div className="flex items-start justify-between mb-6 md:mb-8">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Active Loan</p>
-                <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                  {loan.type}
-                </h2>
-              </div>
-              <span className="px-4 py-2 bg-secondary/20 text-secondary font-semibold rounded-full text-sm">
-                {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
-              </span>
+      <main className="px-4 -mt-2 pb-8 space-y-4">
+        {/* Next Payment Card */}
+        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-amber-800 text-xs font-medium">Next Payment</p>
+              <p className="text-amber-900 font-bold">{loan.nextPayment}</p>
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Loan Amount</p>
-                <p className="text-xl md:text-2xl font-bold text-slate-900">
-                  K{loan.amount.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Amount Disbursed</p>
-                <p className="text-xl md:text-2xl font-bold text-secondary">
-                  K{loan.disbursed.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Outstanding Balance</p>
-                <p className="text-xl md:text-2xl font-bold text-primary">
-                  K{loan.outstanding.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Interest Rate</p>
-                <p className="text-xl md:text-2xl font-bold text-slate-900">
-                  {loan.interestRate}%
-                </p>
-              </div>
-            </div>
+            <p className="text-amber-900 font-bold text-xl">K{loan.amountDue.toFixed(2)}</p>
           </div>
+          <Button
+            onClick={() => setLocation("/repayment")}
+            className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold h-10 text-sm"
+          >
+            <CreditCard className="w-4 h-4 mr-2" />
+            Pay Now
+          </Button>
+        </div>
 
-          {/* Next Payment Card */}
-          <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-accent/30">
-            <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-              Next Payment Due
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Due Date</p>
-                <p className="text-lg md:text-2xl font-bold text-slate-900">
-                  {loan.nextPayment}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-600 mb-2">Amount Due</p>
-                <p className="text-lg md:text-2xl font-bold text-accent">
-                  K{loan.amountDue.toFixed(2)}
-                </p>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <Button
-                  onClick={() => setLocation("/repayment")}
-                  className="w-full rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-2 md:py-3 h-10 md:h-12 text-sm md:text-base flex items-center justify-center gap-2"
-                >
-                  <CreditCard className="w-4 h-4 md:w-5 md:h-5" />
-                  Pay Now
-                </Button>
-              </div>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setLocation("/early-repayment")}
+            className="bg-white rounded-xl p-4 border border-slate-100 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+              <TrendingDown className="w-5 h-5 text-primary" />
+            </div>
+            <p className="font-semibold text-slate-900 text-sm">Early Settlement</p>
+            <p className="text-xs text-slate-500">Pay off early</p>
+          </button>
+          <button
+            onClick={() => setLocation("/restructuring")}
+            className="bg-white rounded-xl p-4 border border-slate-100 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-2">
+              <FileText className="w-5 h-5 text-amber-600" />
+            </div>
+            <p className="font-semibold text-slate-900 text-sm">Restructure</p>
+            <p className="text-xs text-slate-500">Extend tenure</p>
+          </button>
+        </div>
+
+        {/* Loan Info */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-bold text-slate-900 mb-3">Loan Information</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-slate-500 text-sm">Interest Rate</span>
+              <span className="font-semibold text-slate-900 text-sm">{loan.interestRate}% p.a.</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500 text-sm">Amount Disbursed</span>
+              <span className="font-semibold text-slate-900 text-sm">K{loan.disbursed.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500 text-sm">Total Repayment</span>
+              <span className="font-semibold text-slate-900 text-sm">K{loan.totalRepayment.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between pt-3 border-t border-slate-100">
+              <span className="text-slate-500 text-sm">Amount Paid</span>
+              <span className="font-bold text-green-600 text-sm">K{(loan.amount - loan.outstanding).toLocaleString()}</span>
             </div>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 md:gap-4">
-            <Button
-              onClick={() => setLocation("/early-repayment")}
-              variant="outline"
-              className="rounded-full border-2 border-primary text-primary hover:bg-primary/5 font-semibold py-2 md:py-3 h-10 md:h-12 text-xs md:text-sm flex items-center justify-center gap-2"
-            >
-              <TrendingDown className="w-4 h-4" />
-              Early Settlement
-            </Button>
-            <Button
-              onClick={() => setLocation("/restructuring")}
-              variant="outline"
-              className="rounded-full border-2 border-accent text-accent hover:bg-accent/5 font-semibold py-2 md:py-3 h-10 md:h-12 text-xs md:text-sm flex items-center justify-center gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              Request Restructuring
-            </Button>
-          </div>
-
-          {/* Repayment Schedule */}
-          <div className="space-y-4 md:space-y-6">
-            <h3 className="font-bold text-slate-900 text-lg md:text-xl">
-              Repayment Schedule
-            </h3>
-
-            <div className="space-y-2 md:space-y-3">
-              {schedule.map((payment, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 transition-all ${getStatusColor(payment.status)}`}
-                >
-                  <div className="flex items-start justify-between gap-3 md:gap-4 mb-3 md:mb-0">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-900 text-sm md:text-base mb-1">
-                        {payment.date}
-                      </p>
-                      <div className="grid grid-cols-2 gap-4 text-xs md:text-sm">
-                        <div>
-                          <p className="text-slate-600">Principal</p>
-                          <p className="font-bold text-slate-900">
-                            K{payment.principal.toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-600">Interest</p>
-                          <p className="font-bold text-slate-900">
-                            K{payment.interest.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      {getStatusBadge(payment.status)}
-                    </div>
-                  </div>
+        {/* Repayment Schedule */}
+        <div>
+          <h3 className="font-bold text-slate-900 mb-3">Payment Schedule</h3>
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            {schedule.map((payment, idx) => (
+              <div
+                key={idx}
+                className={`flex items-center gap-3 p-4 ${idx !== schedule.length - 1 ? "border-b border-slate-100" : ""}`}
+              >
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${getStatusBg(payment.status)}`}>
+                  {getStatusIcon(payment.status)}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Summary Card */}
-          <div className="p-6 md:p-8 bg-slate-50 rounded-3xl border-2 border-slate-200">
-            <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-              Loan Summary
-            </h3>
-            <div className="space-y-3 md:space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-slate-600 text-sm md:text-base">Total Loan Amount</p>
-                <p className="font-bold text-slate-900 text-sm md:text-base">
-                  K{loan.amount.toLocaleString()}
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900 text-sm">{payment.date}</p>
+                  <p className="text-xs text-slate-500">
+                    {payment.status === "paid" ? "Completed" : payment.status === "due" ? "Due now" : "Upcoming"}
+                  </p>
+                </div>
+                <p className={`font-bold text-sm ${payment.status === "paid" ? "text-green-600" : payment.status === "due" ? "text-amber-600" : "text-slate-900"}`}>
+                  K{payment.amount.toFixed(2)}
                 </p>
               </div>
-              <div className="flex items-center justify-between">
-                <p className="text-slate-600 text-sm md:text-base">Total Repayment</p>
-                <p className="font-bold text-slate-900 text-sm md:text-base">
-                  K{loan.totalRepayment.toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-slate-600 text-sm md:text-base">Outstanding Balance</p>
-                <p className="font-bold text-primary text-sm md:text-base">
-                  K{loan.outstanding.toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-300">
-                <p className="text-slate-600 text-sm md:text-base font-semibold">Amount Paid</p>
-                <p className="font-bold text-secondary text-sm md:text-base">
-                  K{(loan.amount - loan.outstanding).toLocaleString()}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </main>

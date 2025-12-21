@@ -1,15 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
-import { ChevronLeft, Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { ChevronLeft, Upload, CheckCircle2, Copy, Info } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 /**
  * Repayment Submission Page
- * Design: Mobile-first responsive with modern branding
- * - Bank details display
+ * Design: Mobile-native banking app style
+ * - Bank details with copy functionality
  * - Payment proof upload
- * - Pending confirmation status
+ * - Success confirmation
  */
 export default function RepaymentSubmission() {
   const [, setLocation] = useLocation();
@@ -21,15 +22,18 @@ export default function RepaymentSubmission() {
     bankName: "Zambia National Commercial Bank",
     accountName: "Goodleaf Loans Ltd",
     accountNumber: "1234567890",
-    branchCode: "001",
-    swiftCode: "ZNCBZAMX"
+    branchCode: "001"
   };
 
   const loanInfo = {
     loanId: "GL-2025-001",
     outstanding: 7500,
-    monthlyPayment: 916.67,
-    nextPaymentDate: "Jan 31, 2025"
+    monthlyPayment: 916.67
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied!`);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,211 +47,177 @@ export default function RepaymentSubmission() {
     e.preventDefault();
     if (uploadedFile) {
       setIsSubmitted(true);
-      setTimeout(() => {
-        setLocation("/dashboard");
-      }, 2000);
     }
   };
 
+  if (isSubmitted) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+          <CheckCircle2 className="w-10 h-10 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">
+          Payment Submitted!
+        </h2>
+        <p className="text-slate-500 text-center mb-8 max-w-xs">
+          We'll verify your payment and update your balance within 24 hours.
+        </p>
+        <Button
+          onClick={() => setLocation("/dashboard")}
+          className="w-full max-w-xs rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-12"
+        >
+          Back to Home
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="container flex items-center justify-between h-14 md:h-20 px-4 md:px-6">
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
+        <div className="flex items-center h-14 px-4">
           <button
             onClick={() => setLocation("/dashboard")}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="w-10 h-10 flex items-center justify-center -ml-2"
           >
-            <ChevronLeft className="w-6 h-6 text-slate-900" />
-            <span className="text-sm md:text-base font-semibold text-slate-900">Back</span>
+            <ChevronLeft className="w-6 h-6 text-slate-700" />
           </button>
-          <h1 className="text-lg md:text-2xl font-bold text-slate-900">Make Payment</h1>
-          <div className="w-8 h-8"></div>
+          <h1 className="flex-1 text-center font-bold text-slate-900">
+            Make Payment
+          </h1>
+          <div className="w-10"></div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container px-4 md:px-6 py-6 md:py-12">
-        <div className="max-w-2xl mx-auto">
-          {!isSubmitted ? (
-            <div className="space-y-6 md:space-y-8">
-              {/* Loan Info Card */}
-              <div className="p-6 md:p-8 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-3xl border-2 border-primary/20">
-                <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-                  Payment Details
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Loan ID</p>
-                    <p className="font-bold text-slate-900 text-sm md:text-base">
-                      {loanInfo.loanId}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Outstanding Balance</p>
-                    <p className="font-bold text-primary text-sm md:text-base">
-                      K{loanInfo.outstanding.toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Due Date</p>
-                    <p className="font-bold text-slate-900 text-sm md:text-base">
-                      {loanInfo.nextPaymentDate}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Details Card */}
-              <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-6 text-lg md:text-xl">
-                  Bank Details for Transfer
-                </h3>
-                <div className="space-y-4 md:space-y-6 p-4 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-200">
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Bank Name</p>
-                    <p className="font-bold text-slate-900 text-sm md:text-base">
-                      {bankDetails.bankName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Account Name</p>
-                    <p className="font-bold text-slate-900 text-sm md:text-base">
-                      {bankDetails.accountName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-600 mb-1">Account Number</p>
-                    <p className="font-bold text-slate-900 text-sm md:text-base font-mono">
-                      {bankDetails.accountNumber}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-slate-600 mb-1">Branch Code</p>
-                      <p className="font-bold text-slate-900 text-sm md:text-base">
-                        {bankDetails.branchCode}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-600 mb-1">SWIFT Code</p>
-                      <p className="font-bold text-slate-900 text-sm md:text-base">
-                        {bankDetails.swiftCode}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Amount */}
-              <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-4 text-lg md:text-xl">
-                  Payment Amount
-                </h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-900">
-                      Amount to Pay (ZMW)
-                    </label>
-                    <Input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="h-12 md:h-14 rounded-full border-2 border-slate-200 focus:border-primary focus:ring-0 text-base md:text-lg font-bold"
-                    />
-                  </div>
-                  <p className="text-xs md:text-sm text-slate-600">
-                    Monthly payment: K{loanInfo.monthlyPayment.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Upload Payment Proof */}
-              <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
-                <div className="p-6 md:p-8 bg-white rounded-3xl border-2 border-slate-200">
-                  <h3 className="font-bold text-slate-900 mb-6 text-lg md:text-xl">
-                    Upload Payment Proof
-                  </h3>
-
-                  <div className="space-y-4">
-                    <label className="block">
-                      <div className="border-2 border-dashed border-primary/30 rounded-2xl md:rounded-3xl p-8 md:p-12 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all">
-                        <Upload className="w-8 h-8 md:w-12 md:h-12 text-primary mx-auto mb-3" />
-                        <p className="font-semibold text-slate-900 text-sm md:text-base mb-1">
-                          Click to upload or drag and drop
-                        </p>
-                        <p className="text-xs md:text-sm text-slate-600">
-                          PNG, JPG, PDF up to 10MB
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        onChange={handleFileUpload}
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        required
-                      />
-                    </label>
-
-                    {uploadedFile && (
-                      <div className="p-4 md:p-6 bg-green-50 rounded-2xl md:rounded-3xl border-2 border-green-200 flex items-start gap-3 md:gap-4">
-                        <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-green-900 text-sm md:text-base">
-                            File uploaded
-                          </p>
-                          <p className="text-xs md:text-sm text-green-700 truncate">
-                            {uploadedFile}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Info Box */}
-                <div className="p-4 md:p-6 bg-blue-50 rounded-2xl md:rounded-3xl border border-blue-200 flex items-start gap-3 md:gap-4">
-                  <AlertCircle className="w-5 h-5 md:w-6 md:h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-blue-900 text-sm md:text-base mb-1">
-                      Payment Confirmation
-                    </p>
-                    <p className="text-xs md:text-sm text-blue-700">
-                      Your payment proof will be verified by our team. Once confirmed, your loan balance will be updated automatically.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={!uploadedFile}
-                  className="w-full rounded-full bg-primary hover:bg-primary/90 disabled:bg-slate-300 text-white font-semibold py-3 h-12 md:h-14 text-base md:text-lg"
-                >
-                  Submit Payment Proof
-                </Button>
-              </form>
+      <main className="px-4 py-6 space-y-4">
+        {/* Payment Amount */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs text-slate-500">Loan {loanInfo.loanId}</p>
+              <p className="text-slate-600 text-sm">Outstanding: <span className="font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</span></p>
             </div>
-          ) : (
-            <div className="text-center py-12 md:py-16">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 className="w-8 h-8 md:w-10 md:h-10 text-secondary" />
-              </div>
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
-                Payment Submitted!
-              </h2>
-              <p className="text-slate-600 text-sm md:text-base mb-8">
-                Your payment proof has been received. We'll verify it shortly and update your loan balance.
-              </p>
-              <Button
-                onClick={() => setLocation("/dashboard")}
-                className="rounded-full bg-primary hover:bg-primary/90 text-white font-semibold py-2 md:py-3 px-6 md:px-8 text-sm md:text-base"
-              >
-                Back to Dashboard
-              </Button>
-            </div>
-          )}
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Amount to Pay (ZMW)
+            </label>
+            <Input
+              type="number"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              className="h-12 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0 text-xl font-bold text-center"
+            />
+            <p className="text-xs text-slate-500 text-center">
+              Suggested: K{loanInfo.monthlyPayment.toFixed(2)}
+            </p>
+          </div>
         </div>
+
+        {/* Bank Details */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-4">
+          <h3 className="font-bold text-slate-900 mb-4">Transfer to</h3>
+          
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <div>
+                <p className="text-xs text-slate-500">Bank</p>
+                <p className="font-medium text-slate-900 text-sm">{bankDetails.bankName}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <div>
+                <p className="text-xs text-slate-500">Account Name</p>
+                <p className="font-medium text-slate-900 text-sm">{bankDetails.accountName}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(bankDetails.accountName, "Account name")}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <Copy className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between py-2 border-b border-slate-100">
+              <div>
+                <p className="text-xs text-slate-500">Account Number</p>
+                <p className="font-bold text-slate-900 font-mono">{bankDetails.accountNumber}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(bankDetails.accountNumber, "Account number")}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <Copy className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-xs text-slate-500">Branch Code</p>
+                <p className="font-medium text-slate-900 text-sm">{bankDetails.branchCode}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(bankDetails.branchCode, "Branch code")}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <Copy className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Upload Payment Proof */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-100 p-4">
+            <h3 className="font-bold text-slate-900 mb-4">Upload Proof of Payment</h3>
+
+            <label className="block">
+              <div className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                uploadedFile ? "border-green-300 bg-green-50" : "border-slate-200 hover:border-primary/50"
+              }`}>
+                {uploadedFile ? (
+                  <>
+                    <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                    <p className="font-medium text-green-800 text-sm">{uploadedFile}</p>
+                    <p className="text-xs text-green-600 mt-1">Tap to change</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="font-medium text-slate-700 text-sm">Tap to upload</p>
+                    <p className="text-xs text-slate-500 mt-1">PNG, JPG, PDF up to 10MB</p>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                onChange={handleFileUpload}
+                accept="image/*,.pdf"
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* Info Note */}
+          <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl">
+            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700">
+              Upload a screenshot or receipt of your bank transfer. We'll verify and update your balance within 24 hours.
+            </p>
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            disabled={!uploadedFile}
+            className="w-full rounded-xl bg-primary hover:bg-primary/90 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold h-12"
+          >
+            Submit Payment
+          </Button>
+        </form>
       </main>
     </div>
   );
