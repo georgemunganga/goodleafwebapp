@@ -4,36 +4,108 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
 import Login from "./pages/Login";
-import PreEligibilityChecker from "./pages/PreEligibilityChecker";
-import LoanApplication from "./pages/LoanApplication";
 import Dashboard from "./pages/Dashboard";
-import KYCWorkflow from "./pages/KYCWorkflow";
 import LoanHistory from "./pages/LoanHistory";
 import LoanDetails from "./pages/LoanDetails";
 import Profile from "./pages/Profile";
+import LoanApplication from "./pages/LoanApplication";
+import PreEligibilityChecker from "./pages/PreEligibilityChecker";
+import KYCWorkflow from "./pages/KYCWorkflow";
 import RepaymentSubmission from "./pages/RepaymentSubmission";
 import EarlyRepaymentCalculator from "./pages/EarlyRepaymentCalculator";
 import LoanRestructuring from "./pages/LoanRestructuring";
+import AppLayout from "./components/AppLayout";
 
-function Router() {
+function AppRouter() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
+      {/* Auth Pages */}
       <Route path={"/login"} component={Login} />
-      <Route path={"/eligibility-checker"} component={PreEligibilityChecker} />
-      <Route path={"/apply"} component={LoanApplication} />
-      <Route path={"/dashboard"} component={Dashboard} />
-      <Route path={"/kyc"} component={KYCWorkflow} />
-      <Route path={"/loans"} component={LoanHistory} />
-      <Route path={"/loans/:id"} component={LoanDetails} />
-      <Route path={"/profile"} component={Profile} />
-      <Route path={"/repayment"} component={RepaymentSubmission} />
-      <Route path={"/early-repayment"} component={EarlyRepaymentCalculator} />
-      <Route path={"/restructuring"} component={LoanRestructuring} />
+      
+      {/* App Pages with Layout */}
+      <Route path={"/dashboard"}>
+        {() => (
+          <AppLayout>
+            <Dashboard />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/loans"}>
+        {() => (
+          <AppLayout>
+            <LoanHistory />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/loans/:id"}>
+        {() => (
+          <AppLayout>
+            <LoanDetails />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/profile"}>
+        {() => (
+          <AppLayout>
+            <Profile />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/apply"}>
+        {() => (
+          <AppLayout>
+            <LoanApplication />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/check-eligibility"}>
+        {() => (
+          <AppLayout>
+            <PreEligibilityChecker />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/kyc"}>
+        {() => (
+          <AppLayout>
+            <KYCWorkflow />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/repayment"}>
+        {() => (
+          <AppLayout>
+            <RepaymentSubmission />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/early-repayment"}>
+        {() => (
+          <AppLayout>
+            <EarlyRepaymentCalculator />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/restructuring"}>
+        {() => (
+          <AppLayout>
+            <LoanRestructuring />
+          </AppLayout>
+        )}
+      </Route>
+
+      {/* Fallback */}
       <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -45,7 +117,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <AppRouter />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
