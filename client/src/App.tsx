@@ -11,6 +11,8 @@ import { OfflineIndicator } from "./components/OfflineIndicator";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { QueryProvider } from "./providers/QueryProvider";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
+import { ModalProvider } from "./contexts/ModalContext";
+import { ModalRenderer } from "./components/ModalRenderer";
 
 // Pages
 import Home from "./pages/Home";
@@ -71,27 +73,27 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <CurrencyProvider>
+      <ThemeProvider defaultTheme="light">
+        <TooltipProvider>
           <QueryProvider>
-            <NetworkProvider>
-              <AuthProvider>
-                <TooltipProvider>
-                  <GlobalLoadingIndicator />
-                  <OfflineIndicator />
-                  <Toaster />
-                  <Router />
-                </TooltipProvider>
-              </AuthProvider>
-            </NetworkProvider>
+            <CurrencyProvider>
+              <NetworkProvider>
+                <AuthProvider>
+                  <ModalProvider>
+                    <GlobalLoadingIndicator />
+                    <OfflineIndicator />
+                    <ModalRenderer />
+                    <Router />
+                  </ModalProvider>
+                </AuthProvider>
+              </NetworkProvider>
+            </CurrencyProvider>
           </QueryProvider>
-        </CurrencyProvider>
+        </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
-
-export default App;
