@@ -340,7 +340,7 @@ export default function LoanApplication() {
         </div>
 
         {/* Right Column - Preview */}
-        <div className="w-1/2 bg-gray-50 p-8 flex flex-col justify-center">
+        <div className="w-1/2 bg-gray-50 p-8 flex flex-col justify-center overflow-y-auto overflow-x-hidden">
           <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Loan Preview</h3>
 

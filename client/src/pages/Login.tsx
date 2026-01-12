@@ -36,7 +36,7 @@ export default function Login() {
       {/* Desktop Layout - Split screen */}
       <div className="hidden lg:flex h-screen">
         {/* Left Side - Hero/Brand Section */}
-        <div className="w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex flex-col items-center justify-center px-12 py-12">
+        <div className="w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex flex-col items-center justify-center px-12 py-12 overflow-hidden">
           <div className="max-w-md text-center">
             <div className="mb-12">
               <img 
@@ -75,7 +75,7 @@ export default function Login() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="w-1/2 flex flex-col items-center justify-center px-12 py-12">
+        <div className="w-1/2 flex flex-col items-center justify-center px-12 py-12 overflow-y-auto overflow-x-hidden">
           <div className="w-full max-w-md">
             <div className="mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
