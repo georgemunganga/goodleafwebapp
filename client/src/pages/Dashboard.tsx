@@ -106,22 +106,22 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="px-5 -mt-2 space-y-6 pb-8">
         {/* Quick Actions Grid */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <div className="grid grid-cols-4 gap-2">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="grid grid-cols-4 gap-3">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
                 <button
                   key={action.path}
                   onClick={() => setLocation(action.path)}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 active:scale-95 transition-all"
+                  className="flex flex-col items-center gap-2.5 p-4 rounded-xl hover:bg-gray-50 active:scale-95 transition-all"
                 >
-                  <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center shadow-lg`}>
-                    <Icon className="w-5 h-5 text-white" />
+                  <div className={`w-14 h-14 ${action.color} rounded-xl flex items-center justify-center shadow-lg`}>
+                    <Icon className="w-6 h-6 text-white" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold text-gray-900 text-xs">{action.label}</p>
-                    <p className="text-[10px] text-gray-500 hidden sm:block">{action.sublabel}</p>
+                    <p className="font-bold text-gray-900 text-sm">{action.label}</p>
+                    <p className="text-xs text-gray-500 hidden sm:block">{action.sublabel}</p>
                   </div>
                 </button>
               );
@@ -131,13 +131,13 @@ export default function Dashboard() {
 
         {/* Active Loans */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-gray-900 text-lg">Active Loans</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900 text-xl">Active Loans</h2>
             <button
               onClick={() => setLocation("/loans")}
-              className="text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+              className="text-primary text-base font-semibold flex items-center gap-1 hover:underline"
             >
-              View all <ChevronRight className="w-4 h-4" />
+              View all <ChevronRight className="w-5 h-5" />
             </button>
           </div>
 
@@ -163,39 +163,39 @@ export default function Dashboard() {
                   onClick={() => setLocation(`/loans/${loan.id}`)}
                   className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-bold text-gray-900">{loan.type}</h3>
-                      <p className="text-xs text-gray-500">{loan.id}</p>
+                      <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                      <p className="text-sm text-gray-500">{loan.id}</p>
                     </div>
-                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
+                    <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full">
                       Active
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Amount</p>
-                      <p className="font-bold text-gray-900">K{loan.amount.toLocaleString()}</p>
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
+                      <p className="font-bold text-gray-900 text-base">K{loan.amount.toLocaleString()}</p>
                     </div>
-                    <div className="bg-primary/5 rounded-xl p-3">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Outstanding</p>
-                      <p className="font-bold text-primary">K{loan.outstanding.toLocaleString()}</p>
+                    <div className="bg-primary/5 rounded-xl p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
+                      <p className="font-bold text-primary text-base">K{loan.outstanding.toLocaleString()}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Next Due</p>
-                      <p className="font-bold text-gray-900">{loan.nextPayment.split(',')[0]}</p>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Next Due</p>
+                      <p className="font-bold text-gray-900 text-base">{loan.nextPayment.split(',')[0]}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-primary rounded-full"
                         style={{ width: `${loan.progress}%` }}
                       ></div>
                     </div>
-                    <span className="text-xs text-gray-500 font-medium">{loan.progress}% paid</span>
+                    <span className="text-sm text-gray-500 font-semibold">{loan.progress}% paid</span>
                   </div>
                 </button>
               ))
