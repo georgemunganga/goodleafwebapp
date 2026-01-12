@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { ButtonLoader } from "@/components/ui/loading-spinner";
 import { FormField, FormFieldGroup } from "@/components/FormField";
 import { PINInput } from "@/components/PINInput";
+import { OTPVerificationModal } from "@/components/OTPVerificationModal";
 import { toast } from "sonner";
 import { authService } from "@/lib/api-service";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 /**
  * Login Page
@@ -46,9 +48,12 @@ type EmailLoginForm = z.infer<typeof EmailLoginSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const auth = useAuthContext();
   const [identifierType, setIdentifierType] = useState<"email" | "phone">("phone");
   const [showPin, setShowPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
 
   // Phone login form
   const phoneForm = useForm<PhoneLoginForm>({
@@ -93,8 +98,16 @@ export default function Login() {
       const response = await authService.login(loginPayload);
 
       if (response.success) {
-        toast.success("Login successful!");
-        setLocation("/dashboard");
+        if (enableTwoFactor) {
+          const email = identifierType === "email" ? (data as EmailLoginForm).email : undefined;
+          const phone = identifierType === "phone" ? `${(data as PhoneLoginForm).countryCode}${(data as PhoneLoginForm).phoneNumber}` : undefined;
+          await auth.requestOTP(email, phone);
+          setOtpModalOpen(true);
+          toast.success("OTP sent! Please check your email/SMS.");
+        } else {
+          toast.success("Login successful!");
+          setLocation("/dashboard");
+        }
       } else {
         toast.error((response as any).message || "Login failed");
       }
@@ -266,6 +279,21 @@ export default function Login() {
                 {isLoading ? <ButtonLoader isLoading={true}>Signing In...</ButtonLoader> : "Sign In"}
               </Button>
 
+              {/* 2FA Toggle */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
+                <input
+                  type="checkbox"
+                  id="enable2fa"
+                  checked={enableTwoFactor}
+                  onChange={(e) => setEnableTwoFactor(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-[#2e7146] cursor-pointer"
+                />
+                <label htmlFor="enable2fa" className="flex-1 text-sm text-gray-700 cursor-pointer">
+                  <span className="font-medium">Enable Two-Factor Authentication</span>
+                  <p className="text-xs text-gray-600 mt-1">Receive a code via email or SMS for added security</p>
+                </label>
+              </div>
+
               {/* Links */}
               <div className="text-center space-y-3">
                 <a href="/forgot-pin" className="block text-sm text-[#2e7146] hover:underline">
@@ -430,6 +458,29 @@ export default function Login() {
           </form>
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      <OTPVerificationModal
+        isOpen={otpModalOpen}
+        onClose={() => {
+          setOtpModalOpen(false);
+          auth.cancelTwoFactor();
+        }}
+        onVerify={async (otp: string) => {
+          const success = await auth.verifyOTP(otp);
+          if (success) {
+            setOtpModalOpen(false);
+            setLocation("/dashboard");
+          }
+          return success;
+        }}
+        otpId={auth.otpId || ''}
+        email={auth.loginEmail}
+        phone={auth.loginPhone}
+        onResendOTP={async () => {
+          await auth.requestOTP(auth.loginEmail, auth.loginPhone);
+        }}
+      />
     </div>
   );
 }

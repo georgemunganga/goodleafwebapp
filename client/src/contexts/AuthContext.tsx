@@ -15,11 +15,20 @@ interface AuthContextType {
   loading: boolean;
   error: Types.ApiError | null;
   isAuthenticated: boolean;
+  // 2FA state
+  twoFactorRequired: boolean;
+  otpId: string | null;
+  loginEmail?: string;
+  loginPhone?: string;
+  // Methods
   login: (request: Types.LoginRequest) => Promise<Types.LoginResponse>;
   logout: () => void;
   clearError: () => void;
   refreshToken: () => Promise<boolean>;
   getSessionRemainingTime: () => number;
+  requestOTP: (email?: string, phone?: string) => Promise<{ otpId: string }>;  
+  verifyOTP: (otp: string) => Promise<boolean>;
+  cancelTwoFactor: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Types.ApiError | null>(null);
+  // 2FA state
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [otpId, setOtpId] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState<string>();
+  const [loginPhone, setLoginPhone] = useState<string>();
 
   // Initialize from session manager
   useEffect(() => {
@@ -141,17 +155,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return sessionManager.getSessionRemainingTime();
   }, []);
 
+  const requestOTP = useCallback(
+    async (email?: string, phone?: string) => {
+      try {
+        const response = await authService.requestOTP({ email, phone });
+        setOtpId(response.otpId);
+        setLoginEmail(email);
+        setLoginPhone(phone);
+        setTwoFactorRequired(true);
+        return { otpId: response.otpId };
+      } catch (err) {
+        setError(err as Types.ApiError);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const verifyOTP = useCallback(
+    async (otp: string) => {
+      try {
+        if (!otpId) throw new Error('No OTP ID found');
+        const response = await authService.verifyOTP({ otpId, otp });
+        if (response.success) {
+          sessionManager.saveTokens(response.token, response.refreshToken);
+          sessionManager.saveUser(response.user);
+          setToken(response.token);
+          setUser(response.user);
+          setTwoFactorRequired(false);
+          setOtpId(null);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        setError(err as Types.ApiError);
+        return false;
+      }
+    },
+    [otpId]
+  );
+
+  const cancelTwoFactor = useCallback(() => {
+    setTwoFactorRequired(false);
+    setOtpId(null);
+    setLoginEmail(undefined);
+    setLoginPhone(undefined);
+  }, []);
+
   const value: AuthContextType = {
     user,
     token,
     loading,
     error,
     isAuthenticated: !!token && !!user,
+    twoFactorRequired,
+    otpId,
+    loginEmail,
+    loginPhone,
     login,
     logout,
     clearError,
     refreshToken,
     getSessionRemainingTime,
+    requestOTP,
+    verifyOTP,
+    cancelTwoFactor,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
