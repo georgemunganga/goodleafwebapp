@@ -1,17 +1,24 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { ProtectedRoute } from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { NetworkProvider } from "./contexts/NetworkContext";
+import { GlobalLoadingIndicator } from "./components/GlobalLoadingIndicator";
+import { OfflineIndicator } from "./components/OfflineIndicator";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+
+// Pages
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import LoanApplication from "./pages/LoanApplication";
+import LoanApplicationSuccess from "./pages/LoanApplicationSuccess";
 import LoanHistory from "./pages/LoanHistory";
 import LoanDetails from "./pages/LoanDetails";
 import Profile from "./pages/Profile";
-import LoanApplication from "./pages/LoanApplication";
 import PreEligibilityChecker from "./pages/PreEligibilityChecker";
 import KYCWorkflow from "./pages/KYCWorkflow";
 import RepaymentSubmission from "./pages/RepaymentSubmission";
@@ -23,195 +30,40 @@ import ChangePIN from "./pages/ChangePIN";
 import NotificationsSettings from "./pages/NotificationsSettings";
 import SecuritySettings from "./pages/SecuritySettings";
 import HelpSupport from "./pages/HelpSupport";
+import PaymentHistory from "./pages/PaymentHistory";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
-import LoanApplicationSuccess from "./pages/LoanApplicationSuccess";
-import PaymentHistory from "./pages/PaymentHistory";
-import AppLayout from "./components/AppLayout";
 
-function AppRouter() {
+function Router() {
   return (
     <Switch>
-      {/* Root redirect to login */}
-      <Route path={"/"}>
-        {() => <Redirect to="/login" />}
-      </Route>
-
-      {/* Auth Pages - No Layout */}
       <Route path={"/login"} component={Login} />
       <Route path={"/forgot-pin"} component={ForgotPIN} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/privacy"} component={Privacy} />
       
-      {/* Protected App Pages with Layout */}
-      <Route path={"/dashboard"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <Dashboard />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
+      {/* Protected Routes */}
+      <Route path={"/dashboard"} component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path={"/apply"} component={() => <ProtectedRoute><LoanApplication /></ProtectedRoute>} />
+      <Route path={"/apply-success"} component={() => <ProtectedRoute><LoanApplicationSuccess /></ProtectedRoute>} />
+      <Route path={"/loans"} component={() => <ProtectedRoute><LoanHistory /></ProtectedRoute>} />
+      <Route path={"/loans/:id"} component={() => <ProtectedRoute><LoanDetails /></ProtectedRoute>} />
+      <Route path={"/:id/payment-history"} component={() => <ProtectedRoute><PaymentHistory /></ProtectedRoute>} />
+      <Route path={"/profile"} component={() => <ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path={"/personal-details"} component={() => <ProtectedRoute><PersonalDetails /></ProtectedRoute>} />
+      <Route path={"/change-pin"} component={() => <ProtectedRoute><ChangePIN /></ProtectedRoute>} />
+      <Route path={"/notifications"} component={() => <ProtectedRoute><NotificationsSettings /></ProtectedRoute>} />
+      <Route path={"/security"} component={() => <ProtectedRoute><SecuritySettings /></ProtectedRoute>} />
+      <Route path={"/help"} component={() => <ProtectedRoute><HelpSupport /></ProtectedRoute>} />
+      <Route path={"/check-eligibility"} component={() => <ProtectedRoute><PreEligibilityChecker /></ProtectedRoute>} />
+      <Route path={"/kyc"} component={() => <ProtectedRoute><KYCWorkflow /></ProtectedRoute>} />
+      <Route path={"/repayment"} component={() => <ProtectedRoute><RepaymentSubmission /></ProtectedRoute>} />
+      <Route path={"/early-repayment"} component={() => <ProtectedRoute><EarlyRepaymentCalculator /></ProtectedRoute>} />
+      <Route path={"/restructure"} component={() => <ProtectedRoute><LoanRestructuring /></ProtectedRoute>} />
 
-      <Route path={"/loans"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <LoanHistory />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/loans/:id"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <LoanDetails />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/loans/:id/payment-history"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <PaymentHistory />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/profile"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <Profile />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      {/* Loan Application - Protected but no AppLayout for cleaner wizard experience */}
-      <Route path={"/apply"}>
-        {() => (
-          <ProtectedRoute>
-            <LoanApplication />
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/apply-success"}>
-        {() => (
-          <ProtectedRoute>
-            <LoanApplicationSuccess />
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/check-eligibility"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <PreEligibilityChecker />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/kyc"}>
-        {() => (
-          <ProtectedRoute>
-            <KYCWorkflow />
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/repayment"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <RepaymentSubmission />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/early-repayment"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <EarlyRepaymentCalculator />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/restructuring"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <LoanRestructuring />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      {/* Settings Pages - Protected */}
-      <Route path={"/personal-details"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <PersonalDetails />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/change-pin"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <ChangePIN />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/notifications"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <NotificationsSettings />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/security"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <SecuritySettings />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path={"/help"}>
-        {() => (
-          <ProtectedRoute>
-            <AppLayout>
-              <HelpSupport />
-            </AppLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      {/* Fallback */}
+      <Route path={"/"} component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path={"/404"} component={NotFound} />
+      {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -220,14 +72,18 @@ function AppRouter() {
 function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <ThemeProvider defaultTheme="light">
-          <TooltipProvider>
-            <Toaster />
-            <AppRouter />
-          </TooltipProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <ThemeProvider defaultTheme="light">
+        <NetworkProvider>
+          <AuthProvider>
+            <TooltipProvider>
+              <GlobalLoadingIndicator />
+              <OfflineIndicator />
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </AuthProvider>
+        </NetworkProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
