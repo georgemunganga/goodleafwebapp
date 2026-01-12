@@ -27,8 +27,8 @@ const PhoneLoginSchema = z.object({
     .min(1, "Phone number is required"),
   countryCode: z.string(),
   pin: z.string()
-    .min(4, "PIN must be at least 4 digits")
-    .max(6, "PIN must be at most 6 digits"),
+    .length(4, "PIN must be exactly 4 digits")
+    .regex(/^\d{4}$/, "PIN must contain only digits"),
 });
 
 const EmailLoginSchema = z.object({
@@ -36,8 +36,8 @@ const EmailLoginSchema = z.object({
     .email("Invalid email address")
     .min(1, "Email is required"),
   pin: z.string()
-    .min(4, "PIN must be at least 4 digits")
-    .max(6, "PIN must be at most 6 digits"),
+    .length(4, "PIN must be exactly 4 digits")
+    .regex(/^\d{4}$/, "PIN must contain only digits"),
 });
 
 type PhoneLoginForm = z.infer<typeof PhoneLoginSchema>;
@@ -245,7 +245,8 @@ export default function Login() {
                 <div className="relative">
                   <input
                     type={showPin ? "text" : "password"}
-                    placeholder="••••••"
+                    placeholder="••••"
+                    maxLength={4}
                     {...(identifierType === "phone" ? phoneRegister("pin") : emailRegister("pin"))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none pr-10"
                   />
@@ -390,7 +391,8 @@ export default function Login() {
               <div className="relative">
                 <input
                   type={showPin ? "text" : "password"}
-                  placeholder="••••••"
+                  placeholder="••••"
+                  maxLength={4}
                   {...(identifierType === "phone" ? phoneRegister("pin") : emailRegister("pin"))}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm pr-10"
                 />
