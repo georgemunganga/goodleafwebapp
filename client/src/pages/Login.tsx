@@ -1,16 +1,15 @@
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Mail, Phone, Lock, Eye, EyeOff, ChevronDown } from "lucide-react";
-import { FormInput } from "@/components/ui/form-input";
+import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * Login Page
- * Design: Mobile-native banking app style matching reference designs
- * - Clean white background
+ * Design: Responsive desktop and mobile layouts
+ * - Desktop: Split layout with hero on left, form on right
+ * - Mobile: Full-width centered form
  * - Email/Phone toggle
  * - PIN input with visibility toggle
- * - Full-width green primary button
  */
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -32,206 +31,375 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header with Logo */}
-      <header className="px-6 pt-12 pb-8">
-        <div className="flex items-center justify-center">
-          <img 
-            src="/images/logo-dark.svg" 
-            alt="Goodleaf" 
-            className="h-10"
-          />
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 px-6 flex flex-col">
-        <div className="flex-1 flex flex-col max-w-md mx-auto w-full">
-          {/* Welcome Text */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome!
+    <div className="min-h-screen bg-white">
+      {/* Desktop Layout - Split screen */}
+      <div className="hidden lg:flex h-screen">
+        {/* Left Side - Hero/Brand Section */}
+        <div className="w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex flex-col items-center justify-center px-12 py-12">
+          <div className="max-w-md text-center">
+            <div className="mb-12">
+              <img 
+                src="/images/logo-white.svg" 
+                alt="Goodleaf" 
+                className="h-16 mx-auto mb-8"
+              />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Goodleaf Loans
             </h1>
-            <p className="text-gray-500">
-              Please enter your {identifierType === "phone" ? "phone number" : "email"} to login to your account
+            <p className="text-white/80 text-lg mb-8">
+              Fast, reliable loans for your financial needs
             </p>
+            <div className="space-y-4 text-white/70">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Quick approval process</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Competitive interest rates</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Flexible repayment terms</p>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            {/* Identifier Type Toggle */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setIdentifierType("phone")}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
-                  identifierType === "phone"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                Phone
-              </button>
-              <button
-                type="button"
-                onClick={() => setIdentifierType("email")}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
-                  identifierType === "email"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                Email
-              </button>
+        {/* Right Side - Login Form */}
+        <div className="w-1/2 flex flex-col items-center justify-center px-12 py-12">
+          <div className="w-full max-w-md">
+            <div className="mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+              <p className="text-gray-600">Sign in to your account to continue</p>
             </div>
 
-            {/* Identifier Input */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                {identifierType === "email" ? "Email ID" : "Mobile Number"}
-              </label>
-              
-              {identifierType === "phone" ? (
-                <div className="flex gap-2">
-                  <div className="relative">
+            <form onSubmit={handleLogin} className="space-y-6">
+              {/* Identifier Type Toggle */}
+              <div className="flex gap-3 p-1 bg-gray-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setIdentifierType("phone")}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium text-sm transition-all ${
+                    identifierType === "phone"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Phone className="w-4 h-4 inline mr-2" />
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdentifierType("email")}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium text-sm transition-all ${
+                    identifierType === "email"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Email
+                </button>
+              </div>
+
+              {/* Phone Number Input */}
+              {identifierType === "phone" && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                  <div className="flex gap-2">
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="appearance-none w-24 px-3 py-3.5 border border-gray-300 rounded-xl bg-white text-gray-900 font-medium focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none pr-8"
+                      className="px-3 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white"
                     >
                       <option value="+260">+260</option>
                       <option value="+27">+27</option>
                       <option value="+263">+263</option>
                       <option value="+265">+265</option>
                     </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="tel"
+                      placeholder="123456789"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                    />
                   </div>
-                  <input
-                    type="tel"
-                    placeholder="123456789"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ""))}
-                    className="flex-1 px-4 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-                    required
-                  />
                 </div>
-              ) : (
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    <Mail className="w-5 h-5" />
-                  </div>
+              )}
+
+              {/* Email Input */}
+              {identifierType === "email" && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Email Address</label>
                   <input
                     type="email"
-                    placeholder="your@email.com"
+                    placeholder="john@example.com"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
               )}
-            </div>
 
-            {/* PIN Input */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                PIN
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                  <Lock className="w-5 h-5" />
+              {/* PIN Input */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">PIN</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type={showPin ? "text" : "password"}
+                    placeholder="••••••"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
-                <input
-                  type={showPin ? "text" : "password"}
-                  placeholder="••••••"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full pl-12 pr-12 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-                  required
-                />
+              </div>
+
+              {/* Forgot PIN Link */}
+              <div className="text-right">
                 <button
                   type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => {}}
+                  className="text-sm text-primary hover:text-primary/80 font-medium"
                 >
-                  {showPin ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  Forgot PIN?
                 </button>
               </div>
-            </div>
 
-            {/* Forgot PIN Link */}
-            <div className="text-right">
-              <button
-                type="button"
-                className="text-sm font-medium text-primary hover:underline"
+              {/* Login Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-primary hover:bg-[#256339] text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                Forgot PIN?
-              </button>
+                {isLoading ? "Signing In..." : "Sign In"}
+              </Button>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or</span>
+                </div>
+              </div>
+
+              {/* Register Link */}
+              <p className="text-center text-gray-600">
+                New user?{" "}
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="text-primary hover:text-primary/80 font-semibold"
+                >
+                  Register here
+                </button>
+              </p>
+
+              {/* Apply for Loan */}
+              <Button
+                type="button"
+                onClick={() => setLocation("/apply")}
+                variant="outline"
+                className="w-full border-2 border-primary text-primary hover:bg-primary/5 font-semibold py-3 rounded-lg"
+              >
+                Apply for a Loan
+              </Button>
+            </form>
+
+            {/* Footer Links */}
+            <div className="mt-8 flex justify-center gap-6 text-xs text-gray-500">
+              <button className="hover:text-gray-700">Terms of Service</button>
+              <button className="hover:text-gray-700">Privacy Policy</button>
             </div>
-
-            {/* Login Button */}
-            <Button
-              type="submit"
-              disabled={isLoading || !identifier || !pin}
-              className="w-full rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-14 text-base shadow-lg shadow-primary/30"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </form>
-
-          {/* Register Link */}
-          <div className="mt-6 text-center">
-            <span className="text-gray-500">New user? </span>
-            <button
-              onClick={() => setLocation("/apply")}
-              className="font-semibold text-primary hover:underline"
-            >
-              Register here
-            </button>
           </div>
         </div>
+      </div>
 
-        {/* Bottom Section */}
-        <div className="py-8 space-y-4">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+      {/* Mobile Layout - Full width */}
+      <div className="lg:hidden flex flex-col min-h-screen">
+        {/* Header with Logo */}
+        <header className="px-4 pt-8 pb-6">
+          <div className="flex items-center justify-center">
+            <img 
+              src="/images/logo-dark.svg" 
+              alt="Goodleaf" 
+              className="h-8"
+            />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 px-4 flex flex-col pb-8">
+          <div className="flex-1 flex flex-col">
+            {/* Welcome Text */}
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                Welcome!
+              </h1>
+              <p className="text-sm text-gray-500">
+                Please enter your {identifierType === "phone" ? "phone number" : "email"} to login
+              </p>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-400">or</span>
-            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              {/* Identifier Type Toggle */}
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setIdentifierType("phone")}
+                  className={`flex-1 py-2.5 px-3 rounded-lg font-medium text-xs transition-all ${
+                    identifierType === "phone"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                >
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdentifierType("email")}
+                  className={`flex-1 py-2.5 px-3 rounded-lg font-medium text-xs transition-all ${
+                    identifierType === "email"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                >
+                  Email
+                </button>
+              </div>
+
+              {/* Phone Number Input */}
+              {identifierType === "phone" && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-gray-700">Mobile Number</label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="px-2.5 py-2.5 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white text-sm"
+                    >
+                      <option value="+260">+260</option>
+                      <option value="+27">+27</option>
+                      <option value="+263">+263</option>
+                      <option value="+265">+265</option>
+                    </select>
+                    <input
+                      type="tel"
+                      placeholder="123456789"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Email Input */}
+              {identifierType === "email" && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-gray-700">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="john@example.com"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-sm"
+                  />
+                </div>
+              )}
+
+              {/* PIN Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-gray-700">PIN</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type={showPin ? "text" : "password"}
+                    placeholder="••••••"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot PIN Link */}
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="text-xs text-primary hover:text-primary/80 font-medium"
+                >
+                  Forgot PIN?
+                </button>
+              </div>
+
+              {/* Login Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-primary hover:bg-[#256339] text-white font-semibold py-3 rounded-lg transition-colors text-sm"
+              >
+                {isLoading ? "Signing In..." : "Sign In"}
+              </Button>
+
+              {/* Register Link */}
+              <p className="text-center text-xs text-gray-600">
+                New user?{" "}
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="text-primary hover:text-primary/80 font-semibold"
+                >
+                  Register here
+                </button>
+              </p>
+            </form>
           </div>
 
+          {/* Apply for Loan Button */}
           <Button
             type="button"
             onClick={() => setLocation("/apply")}
             variant="outline"
-            className="w-full rounded-xl border-2 border-primary text-primary hover:bg-primary/5 font-semibold h-14 text-base"
+            className="w-full border-2 border-primary text-primary hover:bg-primary/5 font-semibold py-3 rounded-lg text-sm"
           >
             Apply for a Loan
           </Button>
 
-          <p className="text-center text-xs text-gray-400 mt-4">
-            By continuing, you agree to our{" "}
-            <button className="text-primary hover:underline">Terms</button>
-            {" & "}
-            <button className="text-primary hover:underline">Privacy Policy</button>
-          </p>
-        </div>
-      </main>
+          {/* Footer Links */}
+          <div className="mt-6 flex justify-center gap-4 text-[10px] text-gray-500">
+            <button className="hover:text-gray-700">Terms</button>
+            <button className="hover:text-gray-700">Privacy</button>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
