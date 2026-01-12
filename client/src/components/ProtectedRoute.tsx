@@ -4,7 +4,7 @@
  * Redirects unauthenticated users to login
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -17,6 +17,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, loading } = useAuthContext();
   const [, setLocation] = useLocation();
 
+  // Use useEffect for redirect to avoid setState during render
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      setLocation('/login');
+    }
+  }, [loading, isAuthenticated, setLocation]);
+
   // Show loading while checking authentication
   if (loading) {
     return (
@@ -26,10 +33,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Show nothing while redirecting
   if (!isAuthenticated) {
-    setLocation('/login');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LoadingSpinner variant="spinner" />
+      </div>
+    );
   }
 
   // Render protected content

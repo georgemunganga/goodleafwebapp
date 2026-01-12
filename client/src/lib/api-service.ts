@@ -94,6 +94,27 @@ export const authService = {
     });
   },
 
+  async register(request: any): Promise<any> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'Registration successful',
+        user: {
+          id: 'user-' + Date.now(),
+          name: request.fullName,
+          email: request.email,
+          phone: request.phoneNumber,
+        },
+        token: 'demo-token-' + Date.now(),
+        refreshToken: 'demo-refresh-token',
+      };
+    }
+    return apiCall('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
   logout(): void {
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
