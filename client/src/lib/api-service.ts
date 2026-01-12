@@ -115,6 +115,40 @@ export const authService = {
     });
   },
 
+  async requestOTP(request: { email?: string; phone?: string }): Promise<{ success: boolean; message: string; otpId: string }> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'OTP sent successfully',
+        otpId: 'otp-' + Date.now(),
+      };
+    }
+    return apiCall('/auth/request-otp', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  async verifyOTP(request: { otpId: string; otp: string }): Promise<Types.LoginResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        user: {
+          id: 'user-123',
+          name: 'John Doe',
+          email: 'john@example.com',
+          phone: '+260123456789',
+        },
+        token: 'demo-token-' + Date.now(),
+        refreshToken: 'demo-refresh-token',
+      };
+    }
+    return apiCall('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
   logout(): void {
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');

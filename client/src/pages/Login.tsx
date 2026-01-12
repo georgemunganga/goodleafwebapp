@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Phone, Lock, Eye, EyeOff, Smartphone } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ButtonLoader } from "@/components/ui/loading-spinner";
 import { FormField, FormFieldGroup } from "@/components/FormField";
+import { PINInput } from "@/components/PINInput";
 import { toast } from "sonner";
 import { authService } from "@/lib/api-service";
 
@@ -242,26 +243,18 @@ export default function Login() {
                 error={currentForm.formState.errors.pin}
                 required
               >
-                <div className="relative">
-                  <input
-                    type={showPin ? "text" : "password"}
-                    placeholder="••••"
-                    maxLength={4}
-                    {...(identifierType === "phone" ? phoneRegister("pin") : emailRegister("pin"))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPin ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+                <PINInput
+                  value={identifierType === "phone" ? phoneForm.watch("pin") : emailForm.watch("pin")}
+                  onChange={(value) => {
+                    if (identifierType === "phone") {
+                      phoneForm.setValue("pin", value);
+                    } else {
+                      emailForm.setValue("pin", value);
+                    }
+                  }}
+                  type="pin"
+                  error={!!currentForm.formState.errors.pin}
+                />
               </FormField>
 
               {/* Submit Button */}
