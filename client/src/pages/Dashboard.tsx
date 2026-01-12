@@ -1,21 +1,70 @@
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard } from "lucide-react";
+import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard, AlertCircle, XCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar } from "lucide-react";
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
 
 /**
- * Dashboard Page
+ * Dashboard Page - Enhanced with Loan Status Variations
  * Design: Mobile-native banking app style matching reference designs
  * - Green gradient header with user greeting
  * - Outstanding balance card with progress
  * - Quick actions grid (4 items)
- * - Active loans list
+ * - Loan status cards with comprehensive variations:
+ *   • Active loans with payment tracking
+ *   • Pending applications
+ *   • Declined applications
+ *   • Pending KYC verification
+ *   • Approved but not disbursed
+ *   • Overdue payments
+ *   • Completed loans
+ * - Personalized recommendations
  * - Recent activity
  */
+
+// Loan status types
+type LoanStatus = 
+  | "active" 
+  | "pending_approval" 
+  | "declined" 
+  | "pending_kyc" 
+  | "kyc_rejected" 
+  | "approved_not_disbursed" 
+  | "overdue" 
+  | "completed";
+
+interface Loan {
+  id: string;
+  type: string;
+  amount: number;
+  outstanding?: number;
+  nextPayment?: string;
+  amountDue?: number;
+  status: LoanStatus;
+  progress?: number;
+  appliedDate?: string;
+  rejectionReason?: string;
+  kycStatus?: "pending" | "rejected" | "completed";
+  disbursementDate?: string;
+  completionDate?: string;
+  daysOverdue?: number;
+}
+
+interface Recommendation {
+  id: string;
+  title: string;
+  description: string;
+  icon: any;
+  action: string;
+  actionPath: string;
+  color: string;
+  priority: "high" | "medium" | "low";
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLoanStatus, setSelectedLoanStatus] = useState<LoanStatus | null>(null);
 
   // Simulate data loading
   useEffect(() => {
@@ -27,7 +76,8 @@ export default function Dashboard() {
     return <PageSkeletonLoader />;
   }
 
-  const activeLoans = [
+  // Sample loans with different statuses for demonstration
+  const allLoans: Loan[] = [
     {
       id: "GL-2025-001",
       type: "Personal Loan",
@@ -37,7 +87,527 @@ export default function Dashboard() {
       amountDue: 916.67,
       status: "active",
       progress: 25
+    },
+    {
+      id: "GL-2025-002",
+      type: "Business Loan",
+      amount: 50000,
+      status: "pending_approval",
+      appliedDate: "Jan 8, 2025",
+      progress: 0
+    },
+    {
+      id: "GL-2025-003",
+      type: "Emergency Loan",
+      amount: 5000,
+      status: "declined",
+      appliedDate: "Jan 5, 2025",
+      rejectionReason: "Income verification failed. Please reapply with updated documents.",
+      progress: 0
+    },
+    {
+      id: "GL-2025-004",
+      type: "Home Improvement Loan",
+      amount: 25000,
+      status: "pending_kyc",
+      appliedDate: "Jan 10, 2025",
+      kycStatus: "pending",
+      progress: 0
+    },
+    {
+      id: "GL-2024-001",
+      type: "Student Loan",
+      amount: 15000,
+      status: "completed",
+      completionDate: "Dec 15, 2024",
+      progress: 100
     }
+  ];
+
+  // Filter loans based on selected status or show all
+  const displayedLoans = selectedLoanStatus 
+    ? allLoans.filter(loan => loan.status === selectedLoanStatus)
+    : allLoans;
+
+  const activeLoan = allLoans.find(loan => loan.status === "active");
+  const overdueLoan = allLoans.find(loan => loan.status === "overdue");
+  const pendingKYC = allLoans.find(loan => loan.status === "pending_kyc");
+
+  // Generate recommendations based on loan portfolio
+  const generateRecommendations = (): Recommendation[] => {
+    const recommendations: Recommendation[] = [];
+
+    // Check if user has no active loans
+    if (!activeLoan && allLoans.filter(l => l.status !== "declined" && l.status !== "pending_approval").length === 0) {
+      recommendations.push({
+        id: "apply-first-loan",
+        title: "Ready for Your First Loan?",
+        description: "Get quick approval for personal or business loans with competitive rates",
+        icon: TrendingUp,
+        action: "Apply Now",
+        actionPath: "/apply",
+        color: "from-green-50 to-emerald-50",
+        priority: "high"
+      });
+    }
+
+    // Check if user has pending KYC
+    if (pendingKYC) {
+      recommendations.push({
+        id: "complete-kyc",
+        title: "Complete Your KYC Verification",
+        description: `Your ${pendingKYC.type} application is waiting for KYC verification to proceed`,
+        icon: AlertCircle,
+        action: "Complete KYC",
+        actionPath: "/kyc",
+        color: "from-amber-50 to-orange-50",
+        priority: "high"
+      });
+    }
+
+    // Check if user has declined application
+    const declinedLoan = allLoans.find(l => l.status === "declined");
+    if (declinedLoan) {
+      recommendations.push({
+        id: "reapply-declined",
+        title: "Reapply for Your Loan",
+        description: `Your previous application was declined. Review requirements and reapply with updated information`,
+        icon: AlertCircle,
+        action: "View Details",
+        actionPath: "/loans",
+        color: "from-red-50 to-rose-50",
+        priority: "high"
+      });
+    }
+
+    // Check if user has active loan and can apply for another
+    if (activeLoan && activeLoan.progress && activeLoan.progress > 50) {
+      recommendations.push({
+        id: "increase-limit",
+        title: "Increase Your Loan Limit",
+        description: "You've successfully repaid 50%+ of your current loan. Eligible for a higher limit",
+        icon: TrendingUp,
+        action: "Increase Limit",
+        actionPath: "/apply",
+        color: "from-blue-50 to-cyan-50",
+        priority: "medium"
+      });
+    }
+
+    // Check if user has overdue payment
+    if (overdueLoan) {
+      recommendations.push({
+        id: "settle-overdue",
+        title: "Settle Your Overdue Payment",
+        description: `You have an overdue payment of K${overdueLoan.amountDue}. Pay now to avoid penalties`,
+        icon: AlertCircle,
+        action: "Pay Now",
+        actionPath: "/repayment",
+        color: "from-red-50 to-pink-50",
+        priority: "high"
+      });
+    }
+
+    // Check if user has active loan approaching due date
+    if (activeLoan && activeLoan.nextPayment) {
+      const daysUntilDue = Math.ceil((new Date(activeLoan.nextPayment).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntilDue <= 7 && daysUntilDue > 0) {
+        recommendations.push({
+          id: "upcoming-payment",
+          title: "Upcoming Payment Reminder",
+          description: `Payment of K${activeLoan.amountDue} due in ${daysUntilDue} days`,
+          icon: Calendar,
+          action: "Schedule Payment",
+          actionPath: "/repayment",
+          color: "from-amber-50 to-yellow-50",
+          priority: "medium"
+        });
+      }
+    }
+
+    // Early repayment suggestion
+    if (activeLoan && activeLoan.outstanding && activeLoan.outstanding > 0) {
+      recommendations.push({
+        id: "early-repay",
+        title: "Save on Interest with Early Repayment",
+        description: "Calculate how much you can save by repaying early",
+        icon: DollarSign,
+        action: "Calculate",
+        actionPath: "/early-repayment",
+        color: "from-purple-50 to-pink-50",
+        priority: "low"
+      });
+    }
+
+    return recommendations.sort((a, b) => {
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
+  };
+
+  const recommendations = generateRecommendations();
+
+  // Render loan status card based on status type
+  const renderLoanCard = (loan: Loan) => {
+    switch (loan.status) {
+      case "active":
+        return (
+          <button
+            key={loan.id}
+            onClick={() => setLocation(`/loans/${loan.id}`)}
+            className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full">
+                Active
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-primary/5 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
+                <p className="font-bold text-primary text-base">K{loan.outstanding?.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Next Due</p>
+                <p className="font-bold text-gray-900 text-base">{loan.nextPayment?.split(',')[0]}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary rounded-full"
+                  style={{ width: `${loan.progress}%` }}
+                ></div>
+              </div>
+              <span className="text-sm text-gray-500 font-semibold">{loan.progress}% paid</span>
+            </div>
+          </button>
+        );
+
+      case "pending_approval":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-blue-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-blue-100 text-blue-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Pending
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
+                <p className="font-bold text-blue-700 text-base">{loan.appliedDate}</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 rounded-xl p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                Your application is under review. We'll notify you once a decision is made.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setLocation("/loans")}
+              variant="outline"
+              className="w-full rounded-xl border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              View Application Status
+            </Button>
+          </div>
+        );
+
+      case "declined":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <XCircle className="w-4 h-4" />
+                Declined
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
+                <p className="font-bold text-red-700 text-base">{loan.appliedDate}</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
+              <p className="text-sm font-semibold text-red-900 mb-2">Reason for Decline:</p>
+              <p className="text-sm text-red-800">{loan.rejectionReason}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                onClick={() => setLocation("/apply")}
+                className="rounded-xl bg-primary hover:bg-[#256339]"
+              >
+                Reapply
+              </Button>
+              <Button
+                onClick={() => setLocation("/help")}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Get Help
+              </Button>
+            </div>
+          </div>
+        );
+
+      case "pending_kyc":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-amber-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-amber-100 text-amber-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                KYC Pending
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Status</p>
+                <p className="font-bold text-amber-700 text-base">Verification Required</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-200">
+              <p className="text-sm text-amber-800">
+                Your loan is approved! Complete KYC verification to proceed with disbursement.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setLocation("/kyc")}
+              className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              Complete KYC Now
+              <ArrowUpRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        );
+
+      case "kyc_rejected":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <XCircle className="w-4 h-4" />
+                KYC Rejected
+              </span>
+            </div>
+
+            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
+              <p className="text-sm font-semibold text-red-900 mb-2">KYC Verification Failed</p>
+              <p className="text-sm text-red-800">
+                Your submitted documents did not meet verification requirements. Please resubmit with clearer images.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setLocation("/kyc")}
+              className="w-full rounded-xl bg-primary hover:bg-[#256339]"
+            >
+              Resubmit KYC
+            </Button>
+          </div>
+        );
+
+      case "approved_not_disbursed":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-green-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Approved
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Disbursement</p>
+                <p className="font-bold text-green-700 text-base">{loan.disbursementDate || "Pending"}</p>
+              </div>
+            </div>
+
+            <div className="bg-green-50 rounded-xl p-4 mb-4 border border-green-200">
+              <p className="text-sm text-green-800">
+                Congratulations! Your loan has been approved. Funds will be disbursed shortly.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setLocation("/loans")}
+              variant="outline"
+              className="w-full rounded-xl border-green-300 text-green-700 hover:bg-green-50"
+            >
+              View Loan Details
+            </Button>
+          </div>
+        );
+
+      case "overdue":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                Overdue
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
+                <p className="font-bold text-red-700 text-base">K{loan.outstanding?.toLocaleString()}</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Days Overdue</p>
+                <p className="font-bold text-red-700 text-base">{loan.daysOverdue}</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
+              <p className="text-sm text-red-800">
+                Your payment is {loan.daysOverdue} days overdue. Penalties may apply. Please pay immediately.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => setLocation("/repayment")}
+              className="w-full rounded-xl bg-red-600 hover:bg-red-700 text-white"
+            >
+              Pay Now
+              <ArrowUpRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        );
+
+      case "completed":
+        return (
+          <div
+            key={loan.id}
+            className="w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-4 text-left opacity-75"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
+                <p className="text-sm text-gray-500">{loan.id}</p>
+              </div>
+              <span className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-full flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Completed
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Completed On</p>
+                <p className="font-bold text-gray-700 text-base">{loan.completionDate}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gray-400 rounded-full"
+                  style={{ width: "100%" }}
+                ></div>
+              </div>
+              <span className="text-sm text-gray-500 font-semibold">100% paid</span>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const quickActions = [
+    { icon: Plus, label: "Apply", sublabel: "New loan", path: "/apply", color: "bg-primary" },
+    { icon: Wallet, label: "Pay", sublabel: "Make payment", path: "/repayment", color: "bg-[#28ca33]" },
+    { icon: Calculator, label: "Calculate", sublabel: "Early repay", path: "/early-repayment", color: "bg-blue-500" },
+    { icon: FileText, label: "History", sublabel: "View loans", path: "/loans", color: "bg-purple-500" },
   ];
 
   const recentActivity = [
@@ -59,13 +629,6 @@ export default function Dashboard() {
       icon: Clock,
       color: "text-amber-600 bg-amber-50"
     }
-  ];
-
-  const quickActions = [
-    { icon: Plus, label: "Apply", sublabel: "New loan", path: "/apply", color: "bg-primary" },
-    { icon: Wallet, label: "Pay", sublabel: "Make payment", path: "/repayment", color: "bg-[#28ca33]" },
-    { icon: Calculator, label: "Calculate", sublabel: "Early repay", path: "/early-repayment", color: "bg-blue-500" },
-    { icon: FileText, label: "History", sublabel: "View loans", path: "/loans", color: "bg-purple-500" },
   ];
 
   return (
@@ -96,7 +659,10 @@ export default function Dashboard() {
               <div>
                 <p className="text-white/70 text-sm mb-1">Total Outstanding</p>
                 <p className="text-white text-4xl font-bold">
-                  K{activeLoans.reduce((sum, loan) => sum + loan.outstanding, 0).toLocaleString()}
+                  K{allLoans
+                    .filter(l => l.outstanding)
+                    .reduce((sum, loan) => sum + (loan.outstanding || 0), 0)
+                    .toLocaleString()}
                 </p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -107,10 +673,10 @@ export default function Dashboard() {
               <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-[#28ca33] rounded-full transition-all"
-                  style={{ width: `${activeLoans[0]?.progress || 0}%` }}
+                  style={{ width: `${activeLoan?.progress || 0}%` }}
                 ></div>
               </div>
-              <span className="text-white text-sm font-medium">{activeLoans[0]?.progress || 0}% paid</span>
+              <span className="text-white text-sm font-medium">{activeLoan?.progress || 0}% paid</span>
             </div>
           </div>
         </div>
@@ -142,10 +708,46 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Active Loans */}
+        {/* Personalized Recommendations */}
+        {recommendations.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Lightbulb className="w-5 h-5 text-amber-500" />
+              <h2 className="font-bold text-gray-900 text-lg">Recommendations for You</h2>
+            </div>
+            <div className="space-y-3">
+              {recommendations.slice(0, 3).map((rec) => {
+                const Icon = rec.icon;
+                return (
+                  <button
+                    key={rec.id}
+                    onClick={() => setLocation(rec.actionPath)}
+                    className={`w-full bg-gradient-to-r ${rec.color} rounded-2xl p-5 border border-gray-200 text-left hover:shadow-md transition-shadow active:scale-[0.98]`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-white/50 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-6 h-6 text-gray-700" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-900 text-base">{rec.title}</h3>
+                        <p className="text-sm text-gray-700 mt-1">{rec.description}</p>
+                        <div className="flex items-center gap-2 mt-3 text-primary font-semibold text-sm">
+                          {rec.action}
+                          <ArrowUpRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Loan Status Tabs */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-gray-900 text-xl">Active Loans</h2>
+            <h2 className="font-bold text-gray-900 text-lg">Your Loans</h2>
             <button
               onClick={() => setLocation("/loans")}
               className="text-primary text-base font-semibold flex items-center gap-1 hover:underline"
@@ -154,14 +756,57 @@ export default function Dashboard() {
             </button>
           </div>
 
+          {/* Status Filter Tabs */}
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-5 px-5">
+            <button
+              onClick={() => setSelectedLoanStatus(null)}
+              className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                selectedLoanStatus === null
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              All ({allLoans.length})
+            </button>
+            {["active", "pending_approval", "pending_kyc", "declined", "completed"].map((status) => {
+              const count = allLoans.filter(l => l.status === status).length;
+              if (count === 0) return null;
+              
+              const statusLabels: Record<string, string> = {
+                active: "Active",
+                pending_approval: "Pending",
+                pending_kyc: "KYC",
+                declined: "Declined",
+                completed: "Completed"
+              };
+
+              return (
+                <button
+                  key={status}
+                  onClick={() => setSelectedLoanStatus(status as LoanStatus)}
+                  className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                    selectedLoanStatus === status
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {statusLabels[status]} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Loans List */}
           <div className="space-y-3">
-            {activeLoans.length === 0 ? (
+            {displayedLoans.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FileText className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">No Active Loans</h3>
-                <p className="text-gray-500 text-sm mb-4">Apply for your first loan today</p>
+                <h3 className="font-semibold text-gray-900 mb-1">No Loans Found</h3>
+                <p className="text-gray-500 text-sm mb-4">
+                  {selectedLoanStatus ? "No loans with this status" : "Apply for your first loan today"}
+                </p>
                 <Button
                   onClick={() => setLocation("/apply")}
                   className="rounded-xl bg-primary hover:bg-[#256339]"
@@ -170,54 +815,13 @@ export default function Dashboard() {
                 </Button>
               </div>
             ) : (
-              activeLoans.map((loan) => (
-                <button
-                  key={loan.id}
-                  onClick={() => setLocation(`/loans/${loan.id}`)}
-                  className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                      <p className="text-sm text-gray-500">{loan.id}</p>
-                    </div>
-                    <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full">
-                      Active
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 mb-5">
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
-                      <p className="font-bold text-gray-900 text-base">K{loan.amount.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-primary/5 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
-                      <p className="font-bold text-primary text-base">K{loan.outstanding.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Next Due</p>
-                      <p className="font-bold text-gray-900 text-base">{loan.nextPayment.split(',')[0]}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${loan.progress}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm text-gray-500 font-semibold">{loan.progress}% paid</span>
-                  </div>
-                </button>
-              ))
+              displayedLoans.map(loan => renderLoanCard(loan))
             )}
           </div>
         </div>
 
-        {/* Payment Due Alert */}
-        {activeLoans.length > 0 && (
+        {/* Payment Due Alert - Only show for active loans */}
+        {activeLoan && activeLoan.status === "active" && (
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -226,7 +830,7 @@ export default function Dashboard() {
               <div className="flex-1">
                 <h3 className="font-bold text-amber-800">Payment Due Soon</h3>
                 <p className="text-sm text-amber-700 mt-1">
-                  K{activeLoans[0].amountDue.toFixed(2)} due on {activeLoans[0].nextPayment}
+                  K{activeLoan.amountDue?.toFixed(2)} due on {activeLoan.nextPayment}
                 </p>
                 <Button
                   onClick={() => setLocation("/repayment")}
