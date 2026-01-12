@@ -176,7 +176,7 @@ export default function Login() {
               <div className="text-right">
                 <button
                   type="button"
-                  onClick={() => {}}
+                  onClick={() => setLocation("/forgot-pin")}
                   className="text-sm text-primary hover:text-primary/80 font-medium"
                 >
                   Forgot PIN?

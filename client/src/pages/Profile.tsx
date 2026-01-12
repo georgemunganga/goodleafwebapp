@@ -27,25 +27,25 @@ export default function Profile() {
       icon: User,
       label: "Personal Details",
       description: "Name, email, phone",
-      action: () => toast.info("Feature coming soon")
+      action: () => setLocation("/personal-details")
     },
     {
       icon: Lock,
       label: "Change PIN",
       description: "Update your login PIN",
-      action: () => toast.info("Feature coming soon")
+      action: () => setLocation("/change-pin")
     },
     {
       icon: Bell,
       label: "Notifications",
       description: "Payment reminders, alerts",
-      action: () => toast.info("Feature coming soon")
+      action: () => setLocation("/notifications")
     },
     {
       icon: Shield,
       label: "Security",
       description: "2FA, active sessions",
-      action: () => toast.info("Feature coming soon")
+      action: () => setLocation("/security")
     },
     {
       icon: FileText,
@@ -57,7 +57,7 @@ export default function Profile() {
       icon: HelpCircle,
       label: "Help & Support",
       description: "FAQs, contact us",
-      action: () => toast.info("Feature coming soon")
+      action: () => setLocation("/help")
     }
   ];
 
@@ -83,7 +83,7 @@ export default function Profile() {
               <p className="text-white/70 text-sm">{profile.email}</p>
             </div>
             <button 
-              onClick={() => toast.info("Feature coming soon")}
+              onClick={() => setLocation("/personal-details")}
               className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors"
             >
               <Edit2 className="w-5 h-5" />

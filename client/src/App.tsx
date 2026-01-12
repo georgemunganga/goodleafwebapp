@@ -15,6 +15,12 @@ import KYCWorkflow from "./pages/KYCWorkflow";
 import RepaymentSubmission from "./pages/RepaymentSubmission";
 import EarlyRepaymentCalculator from "./pages/EarlyRepaymentCalculator";
 import LoanRestructuring from "./pages/LoanRestructuring";
+import ForgotPIN from "./pages/ForgotPIN";
+import PersonalDetails from "./pages/PersonalDetails";
+import ChangePIN from "./pages/ChangePIN";
+import NotificationsSettings from "./pages/NotificationsSettings";
+import SecuritySettings from "./pages/SecuritySettings";
+import HelpSupport from "./pages/HelpSupport";
 import AppLayout from "./components/AppLayout";
 
 function AppRouter() {
@@ -27,6 +33,7 @@ function AppRouter() {
 
       {/* Auth Pages - No Layout */}
       <Route path={"/login"} component={Login} />
+      <Route path={"/forgot-pin"} component={ForgotPIN} />
       
       {/* App Pages with Layout */}
       <Route path={"/dashboard"}>
@@ -94,6 +101,47 @@ function AppRouter() {
         {() => (
           <AppLayout>
             <LoanRestructuring />
+          </AppLayout>
+        )}
+      </Route>
+
+      {/* Settings Pages */}
+      <Route path={"/personal-details"}>
+        {() => (
+          <AppLayout>
+            <PersonalDetails />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/change-pin"}>
+        {() => (
+          <AppLayout>
+            <ChangePIN />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/notifications"}>
+        {() => (
+          <AppLayout>
+            <NotificationsSettings />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/security"}>
+        {() => (
+          <AppLayout>
+            <SecuritySettings />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/help"}>
+        {() => (
+          <AppLayout>
+            <HelpSupport />
           </AppLayout>
         )}
       </Route>
