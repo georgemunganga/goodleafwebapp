@@ -9,6 +9,8 @@ import { NetworkProvider } from "./contexts/NetworkContext";
 import { GlobalLoadingIndicator } from "./components/GlobalLoadingIndicator";
 import { OfflineIndicator } from "./components/OfflineIndicator";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { QueryProvider } from "./providers/QueryProvider";
+import { CurrencyProvider } from "./contexts/CurrencyContext";
 
 // Pages
 import Home from "./pages/Home";
@@ -72,17 +74,21 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <NetworkProvider>
-          <AuthProvider>
-            <TooltipProvider>
-              <GlobalLoadingIndicator />
-              <OfflineIndicator />
-              <Toaster />
-              <Router />
-            </TooltipProvider>
-          </AuthProvider>
-        </NetworkProvider>
+      <ThemeProvider>
+        <CurrencyProvider>
+          <QueryProvider>
+            <NetworkProvider>
+              <AuthProvider>
+                <TooltipProvider>
+                  <GlobalLoadingIndicator />
+                  <OfflineIndicator />
+                  <Toaster />
+                  <Router />
+                </TooltipProvider>
+              </AuthProvider>
+            </NetworkProvider>
+          </QueryProvider>
+        </CurrencyProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
