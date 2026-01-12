@@ -1,11 +1,13 @@
 /**
  * Auth Context
- * Manages global authentication state and user data
+ * Manages global authentication state, session management, and security
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as Types from '@/lib/api-types';
 import { authService } from '@/lib/api-service';
+import { sessionManager } from '@/lib/session-manager';
+import { auditLogger, AuditEventType } from '@/lib/audit-logger';
 
 interface AuthContextType {
   user: Types.LoginResponse['user'] | null;
@@ -16,6 +18,8 @@ interface AuthContextType {
   login: (request: Types.LoginRequest) => Promise<Types.LoginResponse>;
   logout: () => void;
   clearError: () => void;
+  refreshToken: () => Promise<boolean>;
+  getSessionRemainingTime: () => number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,21 +30,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Types.ApiError | null>(null);
 
-  // Initialize from localStorage
+  // Initialize from session manager
   useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('user');
-
-    if (storedToken && storedUser) {
-      try {
+    const initializeAuth = () => {
+      if (sessionManager.isAuthenticated()) {
+        const storedToken = sessionManager.getToken();
+        const storedUser = sessionManager.getUser();
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
+        setUser(storedUser);
+        sessionManager.resetSessionTimeout();
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+
+    initializeAuth();
+
+    // Setup activity listeners for session timeout
+    const cleanup = sessionManager.setupActivityListeners();
+
+    // Listen for session timeout event
+    const handleSessionTimeout = () => {
+      auditLogger.logSecurityEvent(
+        AuditEventType.SESSION_TIMEOUT,
+        'User session expired due to inactivity'
+      );
+      logout();
+    };
+
+    window.addEventListener('sessionTimeout', handleSessionTimeout);
+
+    return () => {
+      cleanup();
+      window.removeEventListener('sessionTimeout', handleSessionTimeout);
+    };
   }, []);
 
   const login = useCallback(
@@ -48,12 +70,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
       try {
+        auditLogger.logAuth(
+          AuditEventType.LOGIN_ATTEMPT,
+          request.phone || request.email || '',
+          false
+        );
+
         const response = await authService.login(request);
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('refreshToken', response.refreshToken);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        
+        // Save tokens and user data using session manager
+        sessionManager.saveTokens(response.token, response.refreshToken);
+        sessionManager.saveUser(response.user);
+
         setToken(response.token);
         setUser(response.user);
+
+        auditLogger.logAuth(
+          AuditEventType.LOGIN_SUCCESS,
+          request.phone || request.email || '',
+          true
+        );
+
         return response;
       } catch (err: any) {
         const apiError: Types.ApiError = {
@@ -62,6 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: err.status || 500,
         };
         setError(apiError);
+
+        auditLogger.logAuth(
+          AuditEventType.LOGIN_FAILED,
+          request.phone || request.email || '',
+          false,
+          apiError.message
+        );
+
         throw apiError;
       } finally {
         setLoading(false);
@@ -71,14 +116,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    auditLogger.log(
+      AuditEventType.LOGOUT,
+      `User ${user?.id} logged out`,
+      { userId: user?.id },
+      'info'
+    );
+
     authService.logout();
-    localStorage.removeItem('user');
+    sessionManager.clearSession();
     setToken(null);
     setUser(null);
-  }, []);
+  }, [user?.id]);
 
   const clearError = useCallback(() => {
     setError(null);
+  }, []);
+
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    return sessionManager.refreshToken();
+  }, []);
+
+  const getSessionRemainingTime = useCallback((): number => {
+    return sessionManager.getSessionRemainingTime();
   }, []);
 
   const value: AuthContextType = {
@@ -90,6 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     clearError,
+    refreshToken,
+    getSessionRemainingTime,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
