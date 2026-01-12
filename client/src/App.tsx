@@ -21,6 +21,8 @@ import ChangePIN from "./pages/ChangePIN";
 import NotificationsSettings from "./pages/NotificationsSettings";
 import SecuritySettings from "./pages/SecuritySettings";
 import HelpSupport from "./pages/HelpSupport";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import AppLayout from "./components/AppLayout";
 
 function AppRouter() {
@@ -34,6 +36,8 @@ function AppRouter() {
       {/* Auth Pages - No Layout */}
       <Route path={"/login"} component={Login} />
       <Route path={"/forgot-pin"} component={ForgotPIN} />
+      <Route path={"/terms"} component={Terms} />
+      <Route path={"/privacy"} component={Privacy} />
       
       {/* App Pages with Layout */}
       <Route path={"/dashboard"}>

@@ -207,7 +207,7 @@ export default function Login() {
                 New user?{" "}
                 <button
                   type="button"
-                  onClick={() => {}}
+                  onClick={() => setLocation("/apply")}
                   className="text-primary hover:text-primary/80 font-semibold"
                 >
                   Register here
@@ -227,8 +227,20 @@ export default function Login() {
 
             {/* Footer Links */}
             <div className="mt-8 flex justify-center gap-6 text-xs text-gray-500">
-              <button className="hover:text-gray-700">Terms of Service</button>
-              <button className="hover:text-gray-700">Privacy Policy</button>
+              <button
+                type="button"
+                onClick={() => setLocation("/terms")}
+                className="hover:text-gray-700"
+              >
+                Terms of Service
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocation("/privacy")}
+                className="hover:text-gray-700"
+              >
+                Privacy Policy
+              </button>
             </div>
           </div>
         </div>

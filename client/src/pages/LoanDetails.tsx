@@ -120,7 +120,7 @@ export default function LoanDetails() {
               <p className="text-base text-gray-600 font-medium">{loan.nextPaymentDate}</p>
             </div>
             <Button
-              onClick={() => setLocation("/repay")}
+              onClick={() => setLocation("/repayment")}
               className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
             >
               Pay Now
