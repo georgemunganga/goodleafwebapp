@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 /**
  * Profile Page
- * Design: Mobile-native banking app style matching reference designs
+ * Design: Mobile-native banking app style with consistent sizing
  * - Green gradient header with profile
  * - Contact info section
  * - Settings menu list
@@ -62,7 +62,7 @@ export default function Profile() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header - Green gradient */}
       <header className="bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] text-white">
         <div className="px-5 pt-6 pb-10">
@@ -96,35 +96,35 @@ export default function Profile() {
       <main className="px-5 -mt-4 pb-8 space-y-4">
         {/* Contact Info Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Contact Information</h3>
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-bold text-gray-900 text-lg">Contact Information</h3>
           </div>
           <div className="divide-y divide-gray-100">
-            <div className="flex items-center gap-4 p-4">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <Phone className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-4 p-5">
+              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Phone className="w-6 h-6 text-primary" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Phone Number</p>
-                <p className="font-medium text-gray-900">{profile.phone}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 p-4">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <Mail className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Email Address</p>
-                <p className="font-medium text-gray-900">{profile.email}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-500 mb-1">Phone Number</p>
+                <p className="font-bold text-gray-900 text-base truncate">{profile.phone}</p>
               </div>
             </div>
-            <div className="flex items-center gap-4 p-4">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-4 p-5">
+              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Mail className="w-6 h-6 text-primary" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Address</p>
-                <p className="font-medium text-gray-900">{profile.address}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-500 mb-1">Email Address</p>
+                <p className="font-bold text-gray-900 text-base truncate">{profile.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-5">
+              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-6 h-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-500 mb-1">Address</p>
+                <p className="font-bold text-gray-900 text-base truncate">{profile.address}</p>
               </div>
             </div>
           </div>
@@ -132,8 +132,8 @@ export default function Profile() {
 
         {/* Settings Menu */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Settings</h3>
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-bold text-gray-900 text-lg">Settings</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {menuItems.map((item, index) => {
@@ -142,16 +142,16 @@ export default function Profile() {
                 <button
                   key={item.label}
                   onClick={item.action}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="w-full flex items-center gap-4 p-5 hover:bg-gray-50 active:bg-gray-100 transition-colors"
                 >
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-gray-600" />
+                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-6 h-6 text-gray-600" />
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-900">{item.label}</p>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-bold text-gray-900 text-base">{item.label}</p>
                     <p className="text-sm text-gray-500">{item.description}</p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 </button>
               );
             })}
@@ -161,9 +161,9 @@ export default function Profile() {
         {/* Logout Button */}
         <button
           onClick={() => setLocation("/login")}
-          className="w-full flex items-center justify-center gap-3 p-4 bg-red-50 rounded-2xl text-red-600 font-semibold hover:bg-red-100 transition-colors"
+          className="w-full flex items-center justify-center gap-3 p-4 bg-red-50 rounded-2xl text-red-600 font-bold text-base hover:bg-red-100 transition-colors"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-6 h-6" />
           <span>Logout</span>
         </button>
 
@@ -171,9 +171,9 @@ export default function Profile() {
         <div className="text-center pt-4">
           <p className="text-sm text-gray-400 mb-3">Goodleaf Loans v1.0.0</p>
           <div className="flex justify-center gap-4">
-            <button className="text-xs text-gray-500 hover:text-primary">Terms of Service</button>
+            <button className="text-sm text-gray-500 hover:text-primary font-medium">Terms of Service</button>
             <span className="text-gray-300">•</span>
-            <button className="text-xs text-gray-500 hover:text-primary">Privacy Policy</button>
+            <button className="text-sm text-gray-500 hover:text-primary font-medium">Privacy Policy</button>
           </div>
         </div>
       </main>

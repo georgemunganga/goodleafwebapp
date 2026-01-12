@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ChevronLeft, CreditCard, TrendingDown, FileText, Check, Clock, Circle } from "lucide-react";
+import { ArrowLeft, Download, Calendar, DollarSign, TrendingDown, Clock, Check } from "lucide-react";
 
 /**
  * Loan Details Page
- * Design: Mobile-native banking app style
- * - Loan summary header
- * - Progress visualization
+ * Design: Mobile-native banking app style with consistent sizing
+ * - Loan overview with key metrics
  * - Repayment schedule
+ * - Action buttons
  */
 export default function LoanDetails() {
   const [, setLocation] = useLocation();
@@ -16,198 +16,169 @@ export default function LoanDetails() {
     id: "GL-2025-001",
     type: "Personal Loan",
     amount: 10000,
-    disbursed: 9500,
-    totalRepayment: 11000,
-    interestRate: 15,
     outstanding: 7500,
-    nextPayment: "Jan 31, 2025",
-    amountDue: 916.67,
-    status: "active",
+    status: "approved",
+    disbursedDate: "Dec 20, 2024",
+    nextPaymentDate: "Jan 20, 2025",
+    nextPaymentAmount: 500,
+    interestRate: 12.5,
+    tenure: 24,
+    monthlyPayment: 500,
     progress: 25
   };
 
-  const schedule = [
-    { date: "Dec 31, 2024", amount: 916.67, status: "paid" },
-    { date: "Jan 31, 2025", amount: 916.67, status: "due" },
-    { date: "Feb 28, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Mar 31, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Apr 30, 2025", amount: 916.67, status: "upcoming" },
-    { date: "May 31, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Jun 30, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Jul 31, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Aug 31, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Sep 30, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Oct 31, 2025", amount: 916.67, status: "upcoming" },
-    { date: "Nov 30, 2025", amount: 916.67, status: "upcoming" }
+  const repaymentSchedule = [
+    { month: "Jan 2025", dueDate: "Jan 20", amount: 500, status: "upcoming" },
+    { month: "Dec 2024", dueDate: "Dec 20", amount: 500, status: "paid" },
+    { month: "Nov 2024", dueDate: "Nov 20", amount: 500, status: "paid" },
   ];
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "paid":
-        return <Check className="w-4 h-4 text-white" />;
-      case "due":
-        return <Clock className="w-4 h-4 text-white" />;
-      default:
-        return <Circle className="w-3 h-3 text-slate-400" />;
-    }
-  };
-
-  const getStatusBg = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "bg-green-500";
-      case "due":
-        return "bg-amber-500";
-      default:
-        return "bg-slate-200";
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-primary pt-safe">
-        <div className="px-4 py-4 flex items-center">
+    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
+      {/* Header - Green gradient */}
+      <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
+        <div className="px-5 pt-6 pb-6 w-full">
           <button
             onClick={() => setLocation("/loans")}
-            className="w-10 h-10 flex items-center justify-center -ml-2"
+            className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
           >
-            <ChevronLeft className="w-6 h-6 text-white" />
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-base font-semibold">Back</span>
           </button>
-          <h1 className="flex-1 text-center font-bold text-white">
-            Loan Details
-          </h1>
-          <div className="w-10"></div>
-        </div>
-
-        {/* Loan Summary */}
-        <div className="px-5 pb-6">
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-white/70 text-xs">{loan.id}</p>
-                <h2 className="text-white font-bold text-lg">{loan.type}</h2>
-              </div>
-              <span className="px-2.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">
-                Active
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-white/70 text-[10px] uppercase tracking-wide">Loan Amount</p>
-                <p className="text-white font-bold text-xl">K{loan.amount.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-white/70 text-[10px] uppercase tracking-wide">Outstanding</p>
-                <p className="text-white font-bold text-xl">K{loan.outstanding.toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-white rounded-full"
-                  style={{ width: `${loan.progress}%` }}
-                ></div>
-              </div>
-              <span className="text-white text-xs font-medium">{loan.progress}% paid</span>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold mb-1">{loan.type}</h1>
+          <p className="text-white/70 text-base">{loan.id}</p>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="px-4 -mt-2 pb-8 space-y-4">
-        {/* Next Payment Card */}
-        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-amber-800 text-xs font-medium">Next Payment</p>
-              <p className="text-amber-900 font-bold">{loan.nextPayment}</p>
-            </div>
-            <p className="text-amber-900 font-bold text-xl">K{loan.amountDue.toFixed(2)}</p>
+      <main className="flex-1 px-5 py-6 w-full overflow-y-auto space-y-4">
+        {/* Loan Overview Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-gray-500 font-semibold">LOAN STATUS</span>
+            <span className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold">Active</span>
           </div>
-          <Button
-            onClick={() => setLocation("/repayment")}
-            className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold h-10 text-sm"
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            Pay Now
-          </Button>
+
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-2">Loan Amount</p>
+              <p className="text-lg font-bold text-gray-900">K{loan.amount.toLocaleString()}</p>
+            </div>
+            <div className="bg-primary/5 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-2">Outstanding</p>
+              <p className="text-lg font-bold text-primary">K{loan.outstanding.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-2">Interest Rate</p>
+              <p className="text-lg font-bold text-gray-900">{loan.interestRate}%</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-2">Monthly Payment</p>
+              <p className="text-lg font-bold text-gray-900">K{loan.monthlyPayment.toLocaleString()}</p>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600 font-semibold">Repayment Progress</span>
+              <span className="text-sm text-gray-600 font-semibold">{loan.progress}%</span>
+            </div>
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary rounded-full transition-all"
+                style={{ width: `${loan.progress}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Key Details */}
+          <div className="space-y-3 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <span className="text-base text-gray-600 font-medium">Disbursed</span>
+              </div>
+              <span className="text-base font-bold text-gray-900">{loan.disbursedDate}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-gray-400" />
+                <span className="text-base text-gray-600 font-medium">Tenure</span>
+              </div>
+              <span className="text-base font-bold text-gray-900">{loan.tenure} months</span>
+            </div>
+          </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setLocation("/early-repayment")}
-            className="bg-white rounded-xl p-4 border border-slate-100 text-left active:scale-[0.98] transition-transform"
-          >
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-              <TrendingDown className="w-5 h-5 text-primary" />
+        {/* Next Payment Card */}
+        <div className="bg-gradient-to-br from-[#2e7146]/10 to-[#1d4a2f]/10 rounded-2xl border-2 border-primary/20 p-5">
+          <p className="text-xs text-gray-600 mb-2 font-semibold">NEXT PAYMENT DUE</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.nextPaymentAmount.toLocaleString()}</p>
+              <p className="text-base text-gray-600 font-medium">{loan.nextPaymentDate}</p>
             </div>
-            <p className="font-semibold text-slate-900 text-sm">Early Settlement</p>
-            <p className="text-xs text-slate-500">Pay off early</p>
-          </button>
-          <button
-            onClick={() => setLocation("/restructuring")}
-            className="bg-white rounded-xl p-4 border border-slate-100 text-left active:scale-[0.98] transition-transform"
-          >
-            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mb-2">
-              <FileText className="w-5 h-5 text-amber-600" />
-            </div>
-            <p className="font-semibold text-slate-900 text-sm">Restructure</p>
-            <p className="text-xs text-slate-500">Extend tenure</p>
-          </button>
-        </div>
-
-        {/* Loan Info */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-4">
-          <h3 className="font-bold text-slate-900 mb-3">Loan Information</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-slate-500 text-sm">Interest Rate</span>
-              <span className="font-semibold text-slate-900 text-sm">{loan.interestRate}% p.a.</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500 text-sm">Amount Disbursed</span>
-              <span className="font-semibold text-slate-900 text-sm">K{loan.disbursed.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500 text-sm">Total Repayment</span>
-              <span className="font-semibold text-slate-900 text-sm">K{loan.totalRepayment.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between pt-3 border-t border-slate-100">
-              <span className="text-slate-500 text-sm">Amount Paid</span>
-              <span className="font-bold text-green-600 text-sm">K{(loan.amount - loan.outstanding).toLocaleString()}</span>
-            </div>
+            <Button
+              onClick={() => setLocation("/repay")}
+              className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
+            >
+              Pay Now
+            </Button>
           </div>
         </div>
 
         {/* Repayment Schedule */}
-        <div>
-          <h3 className="font-bold text-slate-900 mb-3">Payment Schedule</h3>
-          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-            {schedule.map((payment, idx) => (
-              <div
-                key={idx}
-                className={`flex items-center gap-3 p-4 ${idx !== schedule.length - 1 ? "border-b border-slate-100" : ""}`}
-              >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${getStatusBg(payment.status)}`}>
-                  {getStatusIcon(payment.status)}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="text-lg font-bold text-gray-900">Repayment Schedule</h3>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {repaymentSchedule.map((payment, index) => (
+              <div key={index} className="p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-base font-bold text-gray-900">{payment.month}</p>
+                  <p className="text-sm text-gray-500">Due: {payment.dueDate}</p>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-slate-900 text-sm">{payment.date}</p>
-                  <p className="text-xs text-slate-500">
-                    {payment.status === "paid" ? "Completed" : payment.status === "due" ? "Due now" : "Upcoming"}
+                <div className="text-right">
+                  <p className="text-base font-bold text-gray-900">K{payment.amount.toLocaleString()}</p>
+                  <p className={`text-sm font-semibold flex items-center gap-1 justify-end ${payment.status === "paid" ? "text-green-600" : "text-amber-600"}`}>
+                    {payment.status === "paid" && <Check className="w-4 h-4" />}
+                    {payment.status === "paid" ? "Paid" : "Upcoming"}
                   </p>
                 </div>
-                <p className={`font-bold text-sm ${payment.status === "paid" ? "text-green-600" : payment.status === "due" ? "text-amber-600" : "text-slate-900"}`}>
-                  K{payment.amount.toFixed(2)}
-                </p>
               </div>
             ))}
           </div>
+          <div className="p-4 bg-gray-50 text-center">
+            <button className="text-primary font-bold text-base hover:underline">View Full Schedule</button>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <Button
+            onClick={() => setLocation("/early-repay")}
+            variant="outline"
+            className="w-full h-12 border-2 border-primary text-primary font-bold text-base rounded-xl hover:bg-primary/5"
+          >
+            <TrendingDown className="w-5 h-5 mr-2" />
+            Early Repayment Calculator
+          </Button>
+          <Button
+            onClick={() => setLocation("/restructure")}
+            variant="outline"
+            className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
+          >
+            Request Restructuring
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
+          >
+            <Download className="w-5 h-5 mr-2" />
+            Download Statement
+          </Button>
         </div>
       </main>
     </div>
