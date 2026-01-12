@@ -23,6 +23,8 @@ import SecuritySettings from "./pages/SecuritySettings";
 import HelpSupport from "./pages/HelpSupport";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import LoanApplicationSuccess from "./pages/LoanApplicationSuccess";
+import PaymentHistory from "./pages/PaymentHistory";
 import AppLayout from "./components/AppLayout";
 
 function AppRouter() {
@@ -38,6 +40,7 @@ function AppRouter() {
       <Route path={"/forgot-pin"} component={ForgotPIN} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/privacy"} component={Privacy} />
+      <Route path={"/apply-success"} component={LoanApplicationSuccess} />
       
       {/* App Pages with Layout */}
       <Route path={"/dashboard"}>
@@ -56,10 +59,18 @@ function AppRouter() {
         )}
       </Route>
 
-      <Route path={"/loans/:id"}>
+      <Route path={"/:id"}>
         {() => (
           <AppLayout>
             <LoanDetails />
+          </AppLayout>
+        )}
+      </Route>
+
+      <Route path={"/:id/payment-history"}>
+        {() => (
+          <AppLayout>
+            <PaymentHistory />
           </AppLayout>
         )}
       </Route>
