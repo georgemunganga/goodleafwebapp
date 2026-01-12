@@ -44,8 +44,8 @@ function Router() {
       
       {/* Protected Routes */}
       <Route path={"/dashboard"} component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path={"/apply"} component={() => <ProtectedRoute><LoanApplication /></ProtectedRoute>} />
-      <Route path={"/apply-success"} component={() => <ProtectedRoute><LoanApplicationSuccess /></ProtectedRoute>} />
+      <Route path={"/apply"} component={LoanApplication} />
+      <Route path={"/apply-success"} component={LoanApplicationSuccess} />
       <Route path={"/loans"} component={() => <ProtectedRoute><LoanHistory /></ProtectedRoute>} />
       <Route path={"/loans/:id"} component={() => <ProtectedRoute><LoanDetails /></ProtectedRoute>} />
       <Route path={"/:id/payment-history"} component={() => <ProtectedRoute><PaymentHistory /></ProtectedRoute>} />

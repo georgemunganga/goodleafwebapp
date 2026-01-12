@@ -1,24 +1,31 @@
-import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, Phone, Mail, CheckCircle } from "lucide-react";
+import { ArrowLeft, Phone, Mail, CheckCircle, Lock } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+
+type Step = "method" | "verify" | "reset" | "success";
+type Method = "phone" | "email";
 
 /**
  * Forgot PIN Page
- * Design: Mobile-native banking app style with consistent sizing
+ * Design: Desktop split-layout + Mobile responsive
  * - Phone/Email verification
  * - PIN reset
+ * - Success confirmation
  */
 export default function ForgotPIN() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState<"method" | "verify" | "reset" | "success">("method");
-  const [method, setMethod] = useState<"phone" | "email">("phone");
+  const [step, setStep] = useState<Step>("method");
+  const [method, setMethod] = useState<Method>("phone");
+  const [identifier, setIdentifier] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [newPIN, setNewPIN] = useState("");
   const [confirmPIN, setConfirmPIN] = useState("");
 
   const handleSendCode = () => {
-    setStep("verify");
+    if (identifier) {
+      setStep("verify");
+    }
   };
 
   const handleVerifyCode = () => {
@@ -33,230 +40,384 @@ export default function ForgotPIN() {
     }
   };
 
+  // Success state - both desktop and mobile
   if (step === "success") {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
-        {/* Header */}
-        <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
-          <div className="px-5 pt-6 pb-6 w-full">
-            <h1 className="text-2xl font-bold">PIN Reset</h1>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 px-5 py-6 w-full overflow-y-auto flex flex-col items-center justify-center">
-          <div className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-12 h-12 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">PIN Reset Successful</h2>
-            <p className="text-base text-gray-600 mb-8">
-              Your PIN has been successfully reset. You can now log in with your new PIN.
-            </p>
-            <Button
-              onClick={() => setLocation("/login")}
-              className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
-            >
-              Return to Login
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (step === "reset") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
-        {/* Header */}
-        <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
-          <div className="px-5 pt-6 pb-6 w-full">
-            <button
-              onClick={() => setStep("verify")}
-              className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-base font-semibold">Back</span>
-            </button>
-            <h1 className="text-2xl font-bold mb-1">Create New PIN</h1>
-            <p className="text-white/70 text-base">Set a 6-digit PIN</p>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
-          <div className="space-y-5">
-            {/* New PIN */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <label className="block text-base font-bold text-gray-900 mb-2">New PIN</label>
-              <input
-                type="password"
-                value={newPIN}
-                onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
-                placeholder="Enter 6-digit PIN"
-                maxLength={6}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest"
-              />
-            </div>
-
-            {/* Confirm PIN */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <label className="block text-base font-bold text-gray-900 mb-2">Confirm PIN</label>
-              <input
-                type="password"
-                value={confirmPIN}
-                onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
-                placeholder="Re-enter 6-digit PIN"
-                maxLength={6}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest"
-              />
-            </div>
-
-            {/* Reset Button */}
-            <Button
-              onClick={handleResetPIN}
-              disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
-              className="w-full h-12 bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-bold text-base rounded-xl"
-            >
-              Reset PIN
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (step === "verify") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
-        {/* Header */}
-        <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
-          <div className="px-5 pt-6 pb-6 w-full">
-            <button
-              onClick={() => setStep("method")}
-              className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-base font-semibold">Back</span>
-            </button>
-            <h1 className="text-2xl font-bold mb-1">Verify Identity</h1>
-            <p className="text-white/70 text-base">Enter the code sent to your {method}</p>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
-          <div className="space-y-5">
-            {/* Verification Code */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <label className="block text-base font-bold text-gray-900 mb-2">Verification Code</label>
-              <input
-                type="text"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
-                placeholder="Enter 6-digit code"
-                maxLength={6}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest text-center text-2xl"
-              />
-            </div>
-
-            {/* Verify Button */}
-            <Button
-              onClick={handleVerifyCode}
-              disabled={verificationCode.length !== 6}
-              className="w-full h-12 bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-bold text-base rounded-xl"
-            >
-              Verify Code
-            </Button>
-
-            {/* Resend Code */}
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Didn't receive the code?</p>
-              <button className="text-primary font-bold text-base hover:underline mt-1">
-                Resend Code
-              </button>
-            </div>
-          </div>
-        </main>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+          <CheckCircle className="w-12 h-12 text-green-600" />
+        </div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2 text-center">PIN Reset Successful</h2>
+        <p className="text-gray-600 text-center mb-8 max-w-sm">
+          Your PIN has been successfully reset. You can now log in with your new PIN.
+        </p>
+        <Button
+          onClick={() => setLocation("/login")}
+          className="w-full max-w-xs h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl"
+        >
+          Return to Login
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
-        <div className="px-5 pt-6 pb-6 w-full">
+    <div className="min-h-screen bg-white">
+      {/* Desktop Layout - Split screen */}
+      <div className="hidden lg:flex h-screen">
+        {/* Left Side - Hero/Brand Section */}
+        <div className="w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex flex-col items-center justify-center px-12 py-12 overflow-hidden flex-shrink-0">
+          <div className="max-w-md text-center">
+            <div className="mb-12">
+              <img 
+                src="/images/logo-white.svg" 
+                alt="Goodleaf" 
+                className="h-16 mx-auto mb-8"
+              />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Goodleaf Loans
+            </h1>
+            <p className="text-white/80 text-lg mb-8">
+              Fast, reliable loans for your financial needs
+            </p>
+            <div className="space-y-4 text-white/70">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Quick approval process</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Competitive interest rates</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-sm font-semibold">✓</span>
+                </div>
+                <p>Flexible repayment terms</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side - PIN Reset Form */}
+        <div className="w-1/2 flex flex-col items-center justify-center px-12 py-12 overflow-y-auto overflow-x-hidden flex-shrink-0">
+          <div className="w-full max-w-md">
+            <button
+              onClick={() => setLocation("/login")}
+              className="flex items-center gap-2 text-primary hover:text-primary/80 font-medium mb-8"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back to Login
+            </button>
+
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Reset Your PIN</h2>
+              <p className="text-gray-600">Verify your identity to create a new PIN</p>
+            </div>
+
+            {/* Step 1: Select Method */}
+            {step === "method" && (
+              <div className="space-y-6 animate-in fade-in">
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">Verification Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "phone", label: "Phone", icon: Phone },
+                      { value: "email", label: "Email", icon: Mail }
+                    ].map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setMethod(option.value as Method)}
+                          className={`p-4 rounded-xl border-2 font-semibold transition-all flex items-center justify-center gap-2 ${
+                            method === option.value
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">
+                    {method === "phone" ? "Mobile Number" : "Email Address"}
+                  </label>
+                  <input
+                    type={method === "phone" ? "tel" : "email"}
+                    placeholder={method === "phone" ? "+260 123 456 789" : "john@example.com"}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleSendCode}
+                  disabled={!identifier}
+                  className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+                >
+                  Send Verification Code
+                </Button>
+              </div>
+            )}
+
+            {/* Step 2: Verify Code */}
+            {step === "verify" && (
+              <div className="space-y-6 animate-in fade-in">
+                <button
+                  onClick={() => setStep("method")}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium mb-4"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  Back
+                </button>
+
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Verify Identity</h3>
+                  <p className="text-gray-600 text-sm">Enter the 6-digit code sent to your {method}</p>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">Verification Code</label>
+                  <input
+                    type="text"
+                    placeholder="000000"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
+                    maxLength={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest font-mono"
+                  />
+                  <p className="text-xs text-gray-500">Didn't receive the code? <button className="text-primary hover:underline">Resend</button></p>
+                </div>
+
+                <Button
+                  onClick={handleVerifyCode}
+                  disabled={verificationCode.length !== 6}
+                  className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+                >
+                  Verify Code
+                </Button>
+              </div>
+            )}
+
+            {/* Step 3: Reset PIN */}
+            {step === "reset" && (
+              <div className="space-y-6 animate-in fade-in">
+                <button
+                  onClick={() => setStep("verify")}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium mb-4"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  Back
+                </button>
+
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Create New PIN</h3>
+                  <p className="text-gray-600 text-sm">Set a 6-digit PIN for your account</p>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">New PIN</label>
+                  <input
+                    type="password"
+                    placeholder="••••••"
+                    value={newPIN}
+                    onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
+                    maxLength={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">Confirm PIN</label>
+                  <input
+                    type="password"
+                    placeholder="••••••"
+                    value={confirmPIN}
+                    onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
+                    maxLength={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                  />
+                </div>
+
+                {newPIN && confirmPIN && newPIN !== confirmPIN && (
+                  <p className="text-sm text-red-500">PINs do not match</p>
+                )}
+
+                <Button
+                  onClick={handleResetPIN}
+                  disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
+                  className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+                >
+                  Reset PIN
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Layout */}
+      <div className="lg:hidden min-h-screen bg-gray-50 flex flex-col pb-24">
+        {/* Header */}
+        <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white px-5 py-6">
           <button
-            onClick={() => setLocation("/login")}
+            onClick={() => step === "method" ? setLocation("/login") : setStep("method")}
             className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="text-base font-semibold">Back</span>
+            <span className="font-semibold">{step === "method" ? "Back to Login" : "Back"}</span>
           </button>
-          <h1 className="text-2xl font-bold mb-1">Reset Your PIN</h1>
-          <p className="text-white/70 text-base">Choose how to verify your identity</p>
-        </div>
-      </header>
+          <h1 className="text-2xl font-bold">Reset Your PIN</h1>
+        </header>
 
-      {/* Main Content */}
-      <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
-        <div className="space-y-5">
-          {/* Phone Option */}
-          <button
-            onClick={() => {
-              setMethod("phone");
-              handleSendCode();
-            }}
-            className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
-              method === "phone"
-                ? "border-primary bg-primary/5"
-                : "border-gray-200 bg-white hover:border-gray-300"
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <Phone className="w-6 h-6 text-primary" />
-              </div>
+        {/* Content */}
+        <main className="flex-1 px-5 py-6">
+          {step === "method" && (
+            <div className="space-y-6">
               <div>
-                <p className="font-bold text-base text-gray-900">Via Phone</p>
-                <p className="text-sm text-gray-500">+260 123 456 789</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Verify Your Identity</h2>
+                <p className="text-gray-600">Choose how you want to verify your account</p>
               </div>
-            </div>
-          </button>
 
-          {/* Email Option */}
-          <button
-            onClick={() => {
-              setMethod("email");
-              handleSendCode();
-            }}
-            className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
-              method === "email"
-                ? "border-primary bg-primary/5"
-                : "border-gray-200 bg-white hover:border-gray-300"
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <Mail className="w-6 h-6 text-primary" />
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">Verification Method</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: "phone", label: "Phone", icon: Phone },
+                    { value: "email", label: "Email", icon: Mail }
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setMethod(option.value as Method)}
+                        className={`p-4 rounded-xl border-2 font-semibold transition-all flex flex-col items-center justify-center gap-2 ${
+                          method === option.value
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-gray-200 bg-white text-gray-700"
+                        }`}
+                      >
+                        <Icon className="w-6 h-6" />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">
+                  {method === "phone" ? "Mobile Number" : "Email Address"}
+                </label>
+                <input
+                  type={method === "phone" ? "tel" : "email"}
+                  placeholder={method === "phone" ? "+260 123 456 789" : "john@example.com"}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </div>
+
+              <Button
+                onClick={handleSendCode}
+                disabled={!identifier}
+                className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+              >
+                Send Verification Code
+              </Button>
+            </div>
+          )}
+
+          {step === "verify" && (
+            <div className="space-y-6">
               <div>
-                <p className="font-bold text-base text-gray-900">Via Email</p>
-                <p className="text-sm text-gray-500">john@example.com</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Enter Code</h2>
+                <p className="text-gray-600">We sent a 6-digit code to your {method}</p>
               </div>
-            </div>
-          </button>
 
-          {/* Continue Button */}
-          <Button
-            onClick={handleSendCode}
-            className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl mt-6"
-          >
-            Continue
-          </Button>
-        </div>
-      </main>
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">Verification Code</label>
+                <input
+                  type="text"
+                  placeholder="000000"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
+                  maxLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest font-mono"
+                />
+                <p className="text-xs text-gray-500">Didn't receive the code? <button className="text-primary hover:underline">Resend</button></p>
+              </div>
+
+              <Button
+                onClick={handleVerifyCode}
+                disabled={verificationCode.length !== 6}
+                className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+              >
+                Verify Code
+              </Button>
+            </div>
+          )}
+
+          {step === "reset" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Create New PIN</h2>
+                <p className="text-gray-600">Set a 6-digit PIN for your account</p>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">New PIN</label>
+                <input
+                  type="password"
+                  placeholder="••••••"
+                  value={newPIN}
+                  onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
+                  maxLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">Confirm PIN</label>
+                <input
+                  type="password"
+                  placeholder="••••••"
+                  value={confirmPIN}
+                  onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
+                  maxLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                />
+              </div>
+
+              {newPIN && confirmPIN && newPIN !== confirmPIN && (
+                <p className="text-sm text-red-500">PINs do not match</p>
+              )}
+
+              <Button
+                onClick={handleResetPIN}
+                disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
+                className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
+              >
+                Reset PIN
+              </Button>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
