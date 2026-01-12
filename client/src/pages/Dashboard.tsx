@@ -3,27 +3,23 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard, AlertCircle, XCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar } from "lucide-react";
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
+import { loanService } from "@/lib/api-service";
+import { useNotificationBadges } from "@/hooks/useNotificationBadges";
+import * as Types from "@/lib/api-types";
 
 /**
- * Dashboard Page - Enhanced with Loan Status Variations
+ * Dashboard Page - Enhanced with Loan Status Variations & Real API Integration
  * Design: Mobile-native banking app style matching reference designs
  * - Green gradient header with user greeting
  * - Outstanding balance card with progress
  * - Quick actions grid (4 items)
- * - Loan status cards with comprehensive variations:
- *   • Active loans with payment tracking
- *   • Pending applications
- *   • Declined applications
- *   • Pending KYC verification
- *   • Approved but not disbursed
- *   • Overdue payments
- *   • Completed loans
- * - Personalized recommendations
+ * - Personalized recommendations based on real loan data
+ * - Loan status cards with comprehensive variations
  * - Recent activity
  */
 
-// Loan status types
-type LoanStatus = 
+// Loan status types for display
+type DisplayLoanStatus = 
   | "active" 
   | "pending_approval" 
   | "declined" 
@@ -33,21 +29,8 @@ type LoanStatus =
   | "overdue" 
   | "completed";
 
-interface Loan {
-  id: string;
-  type: string;
-  amount: number;
-  outstanding?: number;
-  nextPayment?: string;
-  amountDue?: number;
-  status: LoanStatus;
-  progress?: number;
-  appliedDate?: string;
-  rejectionReason?: string;
-  kycStatus?: "pending" | "rejected" | "completed";
-  disbursementDate?: string;
-  completionDate?: string;
-  daysOverdue?: number;
+interface DisplayLoan extends Types.LoanDetails {
+  displayStatus: DisplayLoanStatus;
 }
 
 interface Recommendation {
@@ -64,81 +47,76 @@ interface Recommendation {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedLoanStatus, setSelectedLoanStatus] = useState<LoanStatus | null>(null);
+  const [loans, setLoans] = useState<DisplayLoan[]>([]);
+  const [selectedLoanStatus, setSelectedLoanStatus] = useState<DisplayLoanStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simulate data loading
+  // Fetch loans from API
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1500);
-    return () => clearTimeout(timer);
+    const fetchLoans = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedLoans = await loanService.getUserLoans();
+        
+        // Map API loan statuses to display statuses
+        const displayLoans: DisplayLoan[] = fetchedLoans.map(loan => ({
+          ...loan,
+          displayStatus: mapLoanStatus(loan.status)
+        }));
+        
+        setLoans(displayLoans);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch loans:', err);
+        setError('Failed to load loans. Please try again.');
+        // Fallback to empty state
+        setLoans([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoans();
   }, []);
+
+  // Get notification badges
+  const badges = useNotificationBadges(loans);
+
+  // Map API loan status to display status
+  function mapLoanStatus(apiStatus: Types.LoanDetails['status']): DisplayLoanStatus {
+    switch (apiStatus) {
+      case 'active':
+        return 'active';
+      case 'completed':
+        return 'completed';
+      case 'pending':
+        return 'pending_approval';
+      case 'rejected':
+        return 'declined';
+      case 'defaulted':
+        return 'overdue';
+      default:
+        return 'active';
+    }
+  }
 
   if (isLoading) {
     return <PageSkeletonLoader />;
   }
 
-  // Sample loans with different statuses for demonstration
-  const allLoans: Loan[] = [
-    {
-      id: "GL-2025-001",
-      type: "Personal Loan",
-      amount: 10000,
-      outstanding: 7500,
-      nextPayment: "Jan 31, 2025",
-      amountDue: 916.67,
-      status: "active",
-      progress: 25
-    },
-    {
-      id: "GL-2025-002",
-      type: "Business Loan",
-      amount: 50000,
-      status: "pending_approval",
-      appliedDate: "Jan 8, 2025",
-      progress: 0
-    },
-    {
-      id: "GL-2025-003",
-      type: "Emergency Loan",
-      amount: 5000,
-      status: "declined",
-      appliedDate: "Jan 5, 2025",
-      rejectionReason: "Income verification failed. Please reapply with updated documents.",
-      progress: 0
-    },
-    {
-      id: "GL-2025-004",
-      type: "Home Improvement Loan",
-      amount: 25000,
-      status: "pending_kyc",
-      appliedDate: "Jan 10, 2025",
-      kycStatus: "pending",
-      progress: 0
-    },
-    {
-      id: "GL-2024-001",
-      type: "Student Loan",
-      amount: 15000,
-      status: "completed",
-      completionDate: "Dec 15, 2024",
-      progress: 100
-    }
-  ];
-
-  // Filter loans based on selected status or show all
   const displayedLoans = selectedLoanStatus 
-    ? allLoans.filter(loan => loan.status === selectedLoanStatus)
-    : allLoans;
+    ? loans.filter(loan => loan.displayStatus === selectedLoanStatus)
+    : loans;
 
-  const activeLoan = allLoans.find(loan => loan.status === "active");
-  const overdueLoan = allLoans.find(loan => loan.status === "overdue");
-  const pendingKYC = allLoans.find(loan => loan.status === "pending_kyc");
+  const activeLoan = loans.find(loan => loan.displayStatus === "active");
+  const overdueLoan = loans.find(loan => loan.displayStatus === "overdue");
 
-  // Generate recommendations based on loan portfolio
+  // Generate recommendations based on real loan data
   const generateRecommendations = (): Recommendation[] => {
     const recommendations: Recommendation[] = [];
 
     // Check if user has no active loans
-    if (!activeLoan && allLoans.filter(l => l.status !== "declined" && l.status !== "pending_approval").length === 0) {
+    if (!activeLoan && loans.filter(l => l.displayStatus !== "declined" && l.displayStatus !== "pending_approval").length === 0) {
       recommendations.push({
         id: "apply-first-loan",
         title: "Ready for Your First Loan?",
@@ -151,22 +129,23 @@ export default function Dashboard() {
       });
     }
 
-    // Check if user has pending KYC
-    if (pendingKYC) {
+    // Check if user has pending applications
+    const pendingLoan = loans.find(l => l.displayStatus === "pending_approval");
+    if (pendingLoan) {
       recommendations.push({
-        id: "complete-kyc",
-        title: "Complete Your KYC Verification",
-        description: `Your ${pendingKYC.type} application is waiting for KYC verification to proceed`,
-        icon: AlertCircle,
-        action: "Complete KYC",
-        actionPath: "/kyc",
-        color: "from-amber-50 to-orange-50",
-        priority: "high"
+        id: "pending-application",
+        title: "Application Under Review",
+        description: `Your ${pendingLoan.loanCategory} application is being processed`,
+        icon: Clock,
+        action: "View Status",
+        actionPath: "/loans",
+        color: "from-blue-50 to-cyan-50",
+        priority: "medium"
       });
     }
 
-    // Check if user has declined application
-    const declinedLoan = allLoans.find(l => l.status === "declined");
+    // Check if user has declined applications
+    const declinedLoan = loans.find(l => l.displayStatus === "declined");
     if (declinedLoan) {
       recommendations.push({
         id: "reapply-declined",
@@ -181,17 +160,20 @@ export default function Dashboard() {
     }
 
     // Check if user has active loan and can apply for another
-    if (activeLoan && activeLoan.progress && activeLoan.progress > 50) {
-      recommendations.push({
-        id: "increase-limit",
-        title: "Increase Your Loan Limit",
-        description: "You've successfully repaid 50%+ of your current loan. Eligible for a higher limit",
-        icon: TrendingUp,
-        action: "Increase Limit",
-        actionPath: "/apply",
-        color: "from-blue-50 to-cyan-50",
-        priority: "medium"
-      });
+    if (activeLoan && activeLoan.amountPaid && activeLoan.loanAmount) {
+      const repaymentProgress = (activeLoan.amountPaid / activeLoan.loanAmount) * 100;
+      if (repaymentProgress > 50) {
+        recommendations.push({
+          id: "increase-limit",
+          title: "Increase Your Loan Limit",
+          description: "You've successfully repaid 50%+ of your current loan. Eligible for a higher limit",
+          icon: TrendingUp,
+          action: "Increase Limit",
+          actionPath: "/apply",
+          color: "from-blue-50 to-cyan-50",
+          priority: "medium"
+        });
+      }
     }
 
     // Check if user has overdue payment
@@ -199,7 +181,7 @@ export default function Dashboard() {
       recommendations.push({
         id: "settle-overdue",
         title: "Settle Your Overdue Payment",
-        description: `You have an overdue payment of K${overdueLoan.amountDue}. Pay now to avoid penalties`,
+        description: `You have an overdue payment. Pay now to avoid penalties`,
         icon: AlertCircle,
         action: "Pay Now",
         actionPath: "/repayment",
@@ -209,13 +191,13 @@ export default function Dashboard() {
     }
 
     // Check if user has active loan approaching due date
-    if (activeLoan && activeLoan.nextPayment) {
-      const daysUntilDue = Math.ceil((new Date(activeLoan.nextPayment).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    if (activeLoan && activeLoan.nextPaymentDate) {
+      const daysUntilDue = Math.ceil((new Date(activeLoan.nextPaymentDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
       if (daysUntilDue <= 7 && daysUntilDue > 0) {
         recommendations.push({
           id: "upcoming-payment",
           title: "Upcoming Payment Reminder",
-          description: `Payment of K${activeLoan.amountDue} due in ${daysUntilDue} days`,
+          description: `Payment of K${activeLoan.monthlyPayment?.toFixed(2)} due in ${daysUntilDue} days`,
           icon: Calendar,
           action: "Schedule Payment",
           actionPath: "/repayment",
@@ -226,7 +208,7 @@ export default function Dashboard() {
     }
 
     // Early repayment suggestion
-    if (activeLoan && activeLoan.outstanding && activeLoan.outstanding > 0) {
+    if (activeLoan && activeLoan.amountRemaining && activeLoan.amountRemaining > 0) {
       recommendations.push({
         id: "early-repay",
         title: "Save on Interest with Early Repayment",
@@ -248,8 +230,8 @@ export default function Dashboard() {
   const recommendations = generateRecommendations();
 
   // Render loan status card based on status type
-  const renderLoanCard = (loan: Loan) => {
-    switch (loan.status) {
+  const renderLoanCard = (loan: DisplayLoan) => {
+    switch (loan.displayStatus) {
       case "active":
         return (
           <button
@@ -259,8 +241,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
+                <p className="text-sm text-gray-500">{loan.loanId}</p>
               </div>
               <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full">
                 Active
@@ -270,15 +252,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-3 mb-5">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
               </div>
               <div className="bg-primary/5 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
-                <p className="font-bold text-primary text-base">K{loan.outstanding?.toLocaleString()}</p>
+                <p className="font-bold text-primary text-base">K{loan.amountRemaining?.toLocaleString()}</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Next Due</p>
-                <p className="font-bold text-gray-900 text-base">{loan.nextPayment?.split(',')[0]}</p>
+                <p className="font-bold text-gray-900 text-base">{new Date(loan.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
               </div>
             </div>
 
@@ -286,10 +268,10 @@ export default function Dashboard() {
               <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-primary rounded-full"
-                  style={{ width: `${loan.progress}%` }}
+                  style={{ width: `${((loan.amountPaid || 0) / (loan.loanAmount || 1)) * 100}%` }}
                 ></div>
               </div>
-              <span className="text-sm text-gray-500 font-semibold">{loan.progress}% paid</span>
+              <span className="text-sm text-gray-500 font-semibold">{Math.round(((loan.amountPaid || 0) / (loan.loanAmount || 1)) * 100)}% paid</span>
             </div>
           </button>
         );
@@ -302,8 +284,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
+                <p className="text-sm text-gray-500">{loan.loanId}</p>
               </div>
               <span className="px-4 py-2 bg-blue-100 text-blue-700 text-sm font-bold rounded-full flex items-center gap-2">
                 <Clock className="w-4 h-4" />
@@ -314,11 +296,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
               </div>
               <div className="bg-blue-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
-                <p className="font-bold text-blue-700 text-base">{loan.appliedDate}</p>
+                <p className="font-bold text-blue-700 text-base">{new Date(loan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
               </div>
             </div>
 
@@ -346,8 +328,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
+                <p className="text-sm text-gray-500">{loan.loanId}</p>
               </div>
               <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
                 <XCircle className="w-4 h-4" />
@@ -358,17 +340,19 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
               </div>
               <div className="bg-red-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
-                <p className="font-bold text-red-700 text-base">{loan.appliedDate}</p>
+                <p className="font-bold text-red-700 text-base">{new Date(loan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
               </div>
             </div>
 
             <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-              <p className="text-sm font-semibold text-red-900 mb-2">Reason for Decline:</p>
-              <p className="text-sm text-red-800">{loan.rejectionReason}</p>
+              <p className="text-sm font-semibold text-red-900 mb-2">Application Declined</p>
+              <p className="text-sm text-red-800">
+                Your application did not meet the current requirements. Please contact support for more details.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -389,127 +373,6 @@ export default function Dashboard() {
           </div>
         );
 
-      case "pending_kyc":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-amber-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
-              </div>
-              <span className="px-4 py-2 bg-amber-100 text-amber-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                KYC Pending
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-amber-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Status</p>
-                <p className="font-bold text-amber-700 text-base">Verification Required</p>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-200">
-              <p className="text-sm text-amber-800">
-                Your loan is approved! Complete KYC verification to proceed with disbursement.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setLocation("/kyc")}
-              className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white"
-            >
-              Complete KYC Now
-              <ArrowUpRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
-        );
-
-      case "kyc_rejected":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
-              </div>
-              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                KYC Rejected
-              </span>
-            </div>
-
-            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-              <p className="text-sm font-semibold text-red-900 mb-2">KYC Verification Failed</p>
-              <p className="text-sm text-red-800">
-                Your submitted documents did not meet verification requirements. Please resubmit with clearer images.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setLocation("/kyc")}
-              className="w-full rounded-xl bg-primary hover:bg-[#256339]"
-            >
-              Resubmit KYC
-            </Button>
-          </div>
-        );
-
-      case "approved_not_disbursed":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-green-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
-              </div>
-              <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Approved
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-green-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Disbursement</p>
-                <p className="font-bold text-green-700 text-base">{loan.disbursementDate || "Pending"}</p>
-              </div>
-            </div>
-
-            <div className="bg-green-50 rounded-xl p-4 mb-4 border border-green-200">
-              <p className="text-sm text-green-800">
-                Congratulations! Your loan has been approved. Funds will be disbursed shortly.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setLocation("/loans")}
-              variant="outline"
-              className="w-full rounded-xl border-green-300 text-green-700 hover:bg-green-50"
-            >
-              View Loan Details
-            </Button>
-          </div>
-        );
-
       case "overdue":
         return (
           <div
@@ -518,8 +381,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
+                <p className="text-sm text-gray-500">{loan.loanId}</p>
               </div>
               <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
@@ -530,21 +393,21 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-3 mb-5">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
               </div>
               <div className="bg-red-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
-                <p className="font-bold text-red-700 text-base">K{loan.outstanding?.toLocaleString()}</p>
+                <p className="font-bold text-red-700 text-base">K{loan.amountRemaining?.toLocaleString()}</p>
               </div>
               <div className="bg-red-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Days Overdue</p>
-                <p className="font-bold text-red-700 text-base">{loan.daysOverdue}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Status</p>
+                <p className="font-bold text-red-700 text-base">Overdue</p>
               </div>
             </div>
 
             <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
               <p className="text-sm text-red-800">
-                Your payment is {loan.daysOverdue} days overdue. Penalties may apply. Please pay immediately.
+                Your payment is overdue. Penalties may apply. Please pay immediately.
               </p>
             </div>
 
@@ -566,8 +429,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.type}</h3>
-                <p className="text-sm text-gray-500">{loan.id}</p>
+                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
+                <p className="text-sm text-gray-500">{loan.loanId}</p>
               </div>
               <span className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-full flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
@@ -578,11 +441,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.amount?.toLocaleString()}</p>
+                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
               </div>
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Completed On</p>
-                <p className="font-bold text-gray-700 text-base">{loan.completionDate}</p>
+                <p className="font-bold text-gray-700 text-base">{new Date(loan.maturityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
               </div>
             </div>
 
@@ -649,7 +512,11 @@ export default function Dashboard() {
             </div>
             <button className="w-11 h-11 bg-white/10 rounded-full flex items-center justify-center relative hover:bg-white/20 transition-colors">
               <Bell className="w-5 h-5 text-white" />
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#2e7146]"></span>
+              {badges.totalNotifications > 0 && (
+                <span className="absolute top-2.5 right-2.5 w-6 h-6 bg-red-500 rounded-full border-2 border-[#2e7146] flex items-center justify-center text-white text-xs font-bold">
+                  {Math.min(badges.totalNotifications, 9)}
+                </span>
+              )}
             </button>
           </div>
 
@@ -659,9 +526,9 @@ export default function Dashboard() {
               <div>
                 <p className="text-white/70 text-sm mb-1">Total Outstanding</p>
                 <p className="text-white text-4xl font-bold">
-                  K{allLoans
-                    .filter(l => l.outstanding)
-                    .reduce((sum, loan) => sum + (loan.outstanding || 0), 0)
+                  K{loans
+                    .filter(l => l.displayStatus === "active")
+                    .reduce((sum, loan) => sum + (loan.amountRemaining || 0), 0)
                     .toLocaleString()}
                 </p>
               </div>
@@ -673,10 +540,10 @@ export default function Dashboard() {
               <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-[#28ca33] rounded-full transition-all"
-                  style={{ width: `${activeLoan?.progress || 0}%` }}
+                  style={{ width: `${activeLoan ? ((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100 : 0}%` }}
                 ></div>
               </div>
-              <span className="text-white text-sm font-medium">{activeLoan?.progress || 0}% paid</span>
+              <span className="text-white text-sm font-medium">{activeLoan ? Math.round(((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100) : 0}% paid</span>
             </div>
           </div>
         </div>
@@ -744,6 +611,13 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
         {/* Loan Status Tabs */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -766,24 +640,24 @@ export default function Dashboard() {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              All ({allLoans.length})
+              All ({loans.length})
             </button>
-            {["active", "pending_approval", "pending_kyc", "declined", "completed"].map((status) => {
-              const count = allLoans.filter(l => l.status === status).length;
+            {["active", "pending_approval", "declined", "overdue", "completed"].map((status) => {
+              const count = loans.filter(l => l.displayStatus === status).length;
               if (count === 0) return null;
               
               const statusLabels: Record<string, string> = {
                 active: "Active",
                 pending_approval: "Pending",
-                pending_kyc: "KYC",
                 declined: "Declined",
+                overdue: "Overdue",
                 completed: "Completed"
               };
 
               return (
                 <button
                   key={status}
-                  onClick={() => setSelectedLoanStatus(status as LoanStatus)}
+                  onClick={() => setSelectedLoanStatus(status as DisplayLoanStatus)}
                   className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
                     selectedLoanStatus === status
                       ? "bg-primary text-white"
@@ -821,7 +695,7 @@ export default function Dashboard() {
         </div>
 
         {/* Payment Due Alert - Only show for active loans */}
-        {activeLoan && activeLoan.status === "active" && (
+        {activeLoan && activeLoan.displayStatus === "active" && (
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -830,7 +704,7 @@ export default function Dashboard() {
               <div className="flex-1">
                 <h3 className="font-bold text-amber-800">Payment Due Soon</h3>
                 <p className="text-sm text-amber-700 mt-1">
-                  K{activeLoan.amountDue?.toFixed(2)} due on {activeLoan.nextPayment}
+                  K{activeLoan.monthlyPayment?.toFixed(2)} due on {new Date(activeLoan.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
                 <Button
                   onClick={() => setLocation("/repayment")}

@@ -1,7 +1,10 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Home, CreditCard, User, LogOut, Calculator, FileText, Settings, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
+import { loanService } from "@/lib/api-service";
+import { useNotificationBadges } from "@/hooks/useNotificationBadges";
+import * as Types from "@/lib/api-types";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,9 +16,26 @@ interface AppLayoutProps {
  * - Floating green bottom nav on mobile (no sidebar)
  * - Desktop sidebar navigation
  * - Native app feel on mobile
+ * - Notification badges for high-priority actions
  */
 export default function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const [loans, setLoans] = useState<Types.LoanDetails[]>([]);
+  
+  // Fetch loans for notification badges
+  useEffect(() => {
+    const fetchLoans = async () => {
+      try {
+        const fetchedLoans = await loanService.getUserLoans();
+        setLoans(fetchedLoans);
+      } catch (err) {
+        console.error('Failed to fetch loans for notifications:', err);
+      }
+    };
+    fetchLoans();
+  }, []);
+  
+  const badges = useNotificationBadges(loans);
 
   const mainNavItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home },
@@ -31,9 +51,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   ];
 
   const mobileNavItems = [
-    { path: "/dashboard", label: "Home", icon: Home },
-    { path: "/loans", label: "Loans", icon: FileText },
-    { path: "/profile", label: "Profile", icon: User }
+    { path: "/dashboard", label: "Home", icon: Home, badge: badges.dashboardBadge },
+    { path: "/loans", label: "Loans", icon: FileText, badge: badges.loansBadge },
+    { path: "/profile", label: "Profile", icon: User, badge: badges.profileBadge }
   ];
 
   const isActive = (path: string) => {
@@ -77,11 +97,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {mainNavItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
+              const badge = item.path === "/dashboard" ? badges.dashboardBadge : item.path === "/loans" ? badges.loansBadge : 0;
               return (
                 <button
                   key={item.path}
                   onClick={() => handleNavClick(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all relative ${
                     active
                       ? "bg-primary text-white"
                       : "text-gray-600 hover:bg-gray-100"
@@ -89,6 +110,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.label}</span>
+                  {badge > 0 && (
+                    <span className="ml-auto flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
+                      {Math.min(badge, 9)}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -102,11 +128,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
               {secondaryNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
+                const badge = item.path === "/profile" ? badges.profileBadge : 0;
                 return (
                   <button
                     key={item.path}
                     onClick={() => handleNavClick(item.path, item.placeholder)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all relative ${
                       active
                         ? "bg-primary text-white"
                         : "text-gray-600 hover:bg-gray-100"
@@ -114,6 +141,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   >
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
+                    {badge > 0 && (
+                      <span className="ml-auto flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
+                        {Math.min(badge, 9)}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -150,14 +182,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <button
                   key={item.path}
                   onClick={() => setLocation(item.path)}
-                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all ${
+                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all relative ${
                     active
                       ? "text-white"
                       : "text-white/60 hover:text-white/80"
                   }`}
                 >
-                  <div className={`p-1.5 rounded-xl transition-all ${active ? "bg-white/20" : ""}`}>
+                  <div className={`p-1.5 rounded-xl transition-all relative ${active ? "bg-white/20" : ""}`}>
                     <Icon className={`w-5 h-5 ${active ? "scale-110" : ""} transition-transform`} />
+                    {item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-primary">
+                        {Math.min(item.badge, 9)}
+                      </span>
+                    )}
                   </div>
                   <span className={`text-[10px] font-semibold ${active ? "opacity-100" : "opacity-70"}`}>
                     {item.label}
