@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ChevronRight, Search, X, FileText } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ListSkeletonLoader } from "@/components/ui/skeleton-loader";
 
 interface Loan {
   id: string;
@@ -25,6 +26,12 @@ export default function LoanHistory() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   const loans: Loan[] = [
     {
@@ -93,6 +100,19 @@ export default function LoanHistory() {
     { value: "pending", label: "Pending" },
     { value: "rejected", label: "Rejected" }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col pb-24">
+        <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white px-5 py-6">
+          <h1 className="text-2xl font-bold">My Loans</h1>
+        </header>
+        <main className="flex-1 px-5 py-6">
+          <ListSkeletonLoader count={5} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">

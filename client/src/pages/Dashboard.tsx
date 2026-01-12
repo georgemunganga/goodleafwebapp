@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard } from "lucide-react";
+import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
 
 /**
  * Dashboard Page
@@ -13,6 +15,17 @@ import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, Fi
  */
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate data loading
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <PageSkeletonLoader />;
+  }
 
   const activeLoans = [
     {

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProgressSteps } from "@/components/ui/progress-steps";
+import { ButtonLoader } from "@/components/ui/loading-spinner";
 
 type Step = 1 | 2 | 3;
 type LoanType = "personal" | "business";
@@ -38,6 +39,7 @@ export default function LoanApplication() {
   });
   const [pinError, setPinError] = useState("");
   const [showPin, setShowPin] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const monthlyRate = 0.015; // 1.5% monthly
   const serviceFee = formData.loanAmount * 0.05; // 5% service fee
@@ -304,9 +306,12 @@ export default function LoanApplication() {
 
                   <Button
                     type="submit"
+                    disabled={isSubmitting}
                     className="w-full bg-primary hover:bg-[#256339] text-white font-semibold py-3 rounded-lg"
                   >
-                    Submit Application
+                    <ButtonLoader isLoading={isSubmitting} loadingText="Submitting...">
+                      Submit Application
+                    </ButtonLoader>
                   </Button>
                 </form>
               </div>

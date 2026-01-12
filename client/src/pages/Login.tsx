@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ButtonLoader } from "@/components/ui/loading-spinner";
 
 /**
  * Login Page
@@ -189,7 +190,9 @@ export default function Login() {
                 disabled={isLoading}
                 className="w-full bg-primary hover:bg-[#256339] text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                {isLoading ? "Signing In..." : "Sign In"}
+                <ButtonLoader isLoading={isLoading} loadingText="Signing In...">
+                  Sign In
+                </ButtonLoader>
               </Button>
 
               {/* Divider */}
