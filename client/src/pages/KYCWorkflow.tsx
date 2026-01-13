@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Upload, ChevronLeft, ChevronRight, CheckCircle2, FileText, Check } from "lucide-react";
+import { FormRecoveryModal } from "@/components/FormRecoveryModal";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
 
 type KYCStep = 1 | 2;
 
@@ -16,6 +18,15 @@ export default function KYCWorkflow() {
   const [, setLocation] = useLocation();
   const [currentStep, setCurrentStep] = useState<KYCStep>(1);
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
+
+  // Form persistence
+  const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
+    useFormPersistence({
+      key: 'kyc-workflow',
+      debounceMs: 500,
+    });
 
   const [basicInfo, setBasicInfo] = useState({
     nationalId: "",
@@ -32,6 +43,25 @@ export default function KYCWorkflow() {
     "3 Months Payslip",
     "Proof of Address"
   ];
+
+  // Auto-save on mount
+  useEffect(() => {
+    if (hasSavedData()) {
+      const info = getSavedDataInfo();
+      setSavedDataInfo(info);
+      setShowRecoveryModal(true);
+    }
+  }, [hasSavedData, getSavedDataInfo]);
+
+  // Auto-save on change
+  useEffect(() => {
+    saveForm({
+      step: currentStep,
+      basicInfo,
+      uploadedDocs,
+      timestamp: Date.now(),
+    });
+  }, [basicInfo, uploadedDocs, currentStep, saveForm]);
 
   const handleBasicInfoChange = (field: string, value: string) => {
     setBasicInfo(prev => ({
@@ -62,13 +92,47 @@ export default function KYCWorkflow() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    clearForm(); // Clear saved form after successful submission
     setLocation("/dashboard");
+  };
+
+  const handleRecoveryResume = () => {
+    const savedData = restoreForm();
+    if (savedData) {
+      setBasicInfo(savedData.basicInfo || basicInfo);
+      setUploadedDocs(savedData.uploadedDocs || []);
+      setCurrentStep(savedData.step || 1);
+    }
+    setShowRecoveryModal(false);
+  };
+
+  const handleRecoveryStartFresh = () => {
+    clearForm();
+    setBasicInfo({
+      nationalId: "",
+      idType: "nrc",
+      salary: "",
+      guarantor1Name: "",
+      guarantor1Phone: "",
+      guarantor2Name: "",
+      guarantor2Phone: ""
+    });
+    setUploadedDocs([]);
+    setShowRecoveryModal(false);
   };
 
   const stepLabels = ["Information", "Documents"];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <>
+      <FormRecoveryModal
+        open={showRecoveryModal}
+        formName="KYC Verification"
+        savedTimestamp={savedDataInfo?.timestamp}
+        onResume={handleRecoveryResume}
+        onStartFresh={handleRecoveryStartFresh}
+      />
+      <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
         <div className="flex items-center h-14 px-4">
@@ -312,5 +376,6 @@ export default function KYCWorkflow() {
         )}
       </main>
     </div>
+    </>
   );
 }

@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 import { ChevronLeft, Upload, CheckCircle2, Copy, Info } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { FormRecoveryModal } from "@/components/FormRecoveryModal";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
 
 /**
  * Repayment Submission Page
@@ -17,6 +19,15 @@ export default function RepaymentSubmission() {
   const [paymentAmount, setPaymentAmount] = useState("916.67");
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
+
+  // Form persistence
+  const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
+    useFormPersistence({
+      key: 'repayment-submission',
+      debounceMs: 500,
+    });
 
   const bankDetails = {
     bankName: "Zambia National Commercial Bank",
@@ -30,6 +41,26 @@ export default function RepaymentSubmission() {
     outstanding: 7500,
     monthlyPayment: 916.67
   };
+
+  // Auto-save on mount
+  useEffect(() => {
+    if (hasSavedData()) {
+      const info = getSavedDataInfo();
+      setSavedDataInfo(info);
+      setShowRecoveryModal(true);
+    }
+  }, [hasSavedData, getSavedDataInfo]);
+
+  // Auto-save on change
+  useEffect(() => {
+    if (!isSubmitted) {
+      saveForm({
+        paymentAmount,
+        uploadedFile,
+        timestamp: Date.now(),
+      });
+    }
+  }, [paymentAmount, uploadedFile, isSubmitted, saveForm]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -46,8 +77,25 @@ export default function RepaymentSubmission() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (uploadedFile) {
+      clearForm(); // Clear saved form after successful submission
       setIsSubmitted(true);
     }
+  };
+
+  const handleRecoveryResume = () => {
+    const savedData = restoreForm();
+    if (savedData) {
+      setPaymentAmount(savedData.paymentAmount || "916.67");
+      setUploadedFile(savedData.uploadedFile || null);
+    }
+    setShowRecoveryModal(false);
+  };
+
+  const handleRecoveryStartFresh = () => {
+    clearForm();
+    setPaymentAmount("916.67");
+    setUploadedFile(null);
+    setShowRecoveryModal(false);
   };
 
   if (isSubmitted) {
@@ -73,7 +121,15 @@ export default function RepaymentSubmission() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <>
+      <FormRecoveryModal
+        open={showRecoveryModal}
+        formName="Repayment Submission"
+        savedTimestamp={savedDataInfo?.timestamp}
+        onResume={handleRecoveryResume}
+        onStartFresh={handleRecoveryStartFresh}
+      />
+      <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
         <div className="flex items-center h-14 px-4">
@@ -220,5 +276,6 @@ export default function RepaymentSubmission() {
         </form>
       </main>
     </div>
+    </>
   );
 }

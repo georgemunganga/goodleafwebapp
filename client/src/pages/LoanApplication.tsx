@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/button';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { ButtonLoader } from '@/components/ui/loading-spinner';
 import { FormField } from '@/components/FormField';
+import { FormRecoveryModal } from '@/components/FormRecoveryModal';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { authService, loanService } from '@/lib/api-service';
 import { PIN_SCHEMA } from '@/lib/validation-schemas';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { toast } from 'sonner';
 
 type Step = 1 | 2 | 3;
@@ -65,6 +67,15 @@ export default function LoanApplication() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [showPin, setShowPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
+
+  // Form persistence
+  const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
+    useFormPersistence({
+      key: 'loan-application',
+      debounceMs: 500,
+    });
 
   // Step 1 Form
   const step1Form = useForm<Step1Form>({
@@ -77,6 +88,27 @@ export default function LoanApplication() {
       repaymentMonths: 12,
     },
   });
+
+  // Auto-save Step 1 on change
+  useEffect(() => {
+    const subscription = step1Form.watch((data) => {
+      saveForm({
+        step: 1,
+        data,
+        timestamp: Date.now(),
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [step1Form, saveForm]);
+
+  // Check for saved data on mount
+  useEffect(() => {
+    if (hasSavedData()) {
+      const info = getSavedDataInfo();
+      setSavedDataInfo(info);
+      setShowRecoveryModal(true);
+    }
+  }, [hasSavedData, getSavedDataInfo]);
 
   // Step 3 Forms (authenticated vs unauthenticated)
   const step3AuthForm = useForm<Step3AuthenticatedForm>({
@@ -138,6 +170,7 @@ export default function LoanApplication() {
         const response = await loanService.applyForLoan(applicationData as any);
         if (response.success) {
           toast.success('Loan application submitted successfully!');
+          clearForm(); // Clear saved form after successful submission
           setLocation('/kyc');
         } else {
           toast.error('Failed to submit application. Please try again.');
@@ -174,9 +207,11 @@ export default function LoanApplication() {
               const appResponse = await loanService.applyForLoan(applicationData as any);
               if (appResponse.success) {
                 toast.success('Account created and application submitted!');
+                clearForm(); // Clear saved form after successful submission
                 setLocation('/kyc');
               } else {
                 toast.error('Application submitted but KYC verification needed.');
+                clearForm();
                 setLocation('/kyc');
               }
             }
@@ -185,6 +220,7 @@ export default function LoanApplication() {
           console.error('Registration error:', error);
           // Proceed to KYC even if registration fails
           toast.success('Application submitted. Please verify your email.');
+          clearForm();
           setLocation('/kyc');
         }
       }
@@ -196,8 +232,31 @@ export default function LoanApplication() {
     }
   };
 
+  const handleRecoveryResume = () => {
+    const savedData = restoreForm();
+    if (savedData && savedData.data) {
+      step1Form.reset(savedData.data);
+      setCurrentStep(1);
+    }
+    setShowRecoveryModal(false);
+  };
+
+  const handleRecoveryStartFresh = () => {
+    clearForm();
+    step1Form.reset();
+    setShowRecoveryModal(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <>
+      <FormRecoveryModal
+        open={showRecoveryModal}
+        formName="Loan Application"
+        savedTimestamp={savedDataInfo?.timestamp}
+        onResume={handleRecoveryResume}
+        onStartFresh={handleRecoveryStartFresh}
+      />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Desktop Layout */}
       <div className="hidden lg:grid lg:grid-cols-2 lg:min-h-screen">
         {/* Left Side - Hero Section */}
@@ -734,5 +793,6 @@ export default function LoanApplication() {
         </div>
       </div>
     </div>
+    </>
   );
 }
