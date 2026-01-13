@@ -163,7 +163,7 @@ export default function Login() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="w-1/2 flex flex-col items-center justify-center px-12 py-12 overflow-y-auto overflow-x-hidden flex-shrink-0">
+        <div className="w-1/2 flex flex-col items-center justify-start px-12 py-12 overflow-y-auto overflow-x-hidden flex-shrink-0">
           <div className="w-full max-w-md">
             <div className="mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
