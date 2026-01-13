@@ -326,7 +326,7 @@ export default function Login() {
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <img 
-              src="/images/logo.svg" 
+              src="/images/logo-dark.svg" 
               alt="Goodleaf" 
               className="h-12 mx-auto mb-4"
             />
