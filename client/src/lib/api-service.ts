@@ -5,60 +5,215 @@
  */
 
 import * as Types from './api-types';
+import { apiCall, apiCallFormData } from './api-config';
 
-// Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const USAGE_DEMO = import.meta.env.VITE_USAGE_DEMO === 'true';
 
-// Helper function for API calls
-async function apiCall<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const token = localStorage.getItem('authToken');
+const normalizeAuthUser = (user: Types.LoginResponse['user']) => {
+  const nameFromParts = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  const normalizedName = user.name?.trim() || nameFromParts || undefined;
+  return { ...user, name: normalizedName };
+};
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...((options.headers as Record<string, string>) || {}),
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  if (value == null) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toOptionalNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (value == null) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const extractDataArray = <T>(response: unknown): T[] => {
+  if (Array.isArray(response)) {
+    return response as T[];
+  }
+  if (response && typeof response === 'object') {
+    const data = (response as { data?: unknown }).data;
+    if (Array.isArray(data)) {
+      return data as T[];
+    }
+  }
+  return [];
+};
+
+const extractDataObject = <T>(response: unknown): T => {
+  if (response && typeof response === 'object' && 'data' in response) {
+    const data = (response as { data?: unknown }).data;
+    if (data && typeof data === 'object') {
+      return data as T;
+    }
+  }
+  return response as T;
+};
+
+const normalizeRange = (range: any): Types.LoanConfigRange => ({
+  min: toOptionalNumber(range?.min),
+  default: toOptionalNumber(range?.default),
+  max: toOptionalNumber(range?.max),
+});
+
+const normalizeDuration = (duration: any): Types.LoanConfigDuration => {
+  const base = normalizeRange(duration);
+  const periodRaw = typeof duration?.period === 'string' ? duration.period.trim() : '';
+  const period = periodRaw.length > 0 ? periodRaw : 'month';
+  return {
+    ...base,
+    period,
   };
+};
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+const normalizeRates = (rates: any): Types.LoanConfigRates => {
+  const base = normalizeRange(rates);
+  const periodRaw = typeof rates?.period === 'string' ? rates.period.trim() : '';
+  const period = periodRaw.length > 0 ? periodRaw : 'per-month';
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  const methods = Array.isArray(rates?.methods)
+    ? rates.methods
+        .map((method: any) => ({
+          id: toNumber(method?.id),
+          name: typeof method?.name === 'string' && method.name.trim().length > 0 ? method.name : 'Standard',
+          description: method?.description ?? null,
+        }))
+        .filter((method: Types.LoanConfigMethod) => method.id > 0)
+    : [];
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw {
-      code: error.code || 'API_ERROR',
-      message: error.message || 'An error occurred',
-      status: response.status,
-      details: error.details,
-    } as Types.ApiError;
-  }
+  const types = Array.isArray(rates?.types)
+    ? rates.types
+        .map((type: any) => ({
+          id: toNumber(type?.id),
+          name: typeof type?.name === 'string' && type.name.trim().length > 0 ? type.name : 'Percentage',
+          description: type?.description ?? null,
+        }))
+        .filter((type: Types.LoanConfigRateType) => type.id > 0)
+    : [];
 
-  return response.json();
-}
+  return {
+    ...base,
+    period,
+    methods,
+    types,
+  };
+};
+
+const normalizeProduct = (product: any): Types.LoanConfigProduct => {
+  const terms = product?.terms ?? {};
+  const principal = normalizeRange(terms.principal);
+  const duration = normalizeDuration(terms.duration);
+  const repayments = normalizeRange(terms.repayments);
+
+  const repaymentCycles = Array.isArray(product?.repaymentCycles)
+    ? product.repaymentCycles
+        .map((cycle: any) => ({
+          id: toNumber(cycle?.id),
+          name: cycle?.name ?? null,
+        }))
+        .filter((cycle: Types.LoanConfigRepaymentCycle) => cycle.id >= 0)
+    : [];
+
+  return {
+    id: toNumber(product?.id),
+    name:
+      typeof product?.name === 'string' && product.name.trim().length > 0
+        ? product.name
+        : 'Loan Product',
+    description: product?.description ?? null,
+    terms: {
+      principal,
+      duration,
+      repayments,
+    },
+    rates: normalizeRates(product?.rates),
+    repaymentCycles,
+    compliances: Array.isArray(product?.compliances) ? product.compliances : [],
+  };
+};
+
+const normalizeCategory = (category: any): Types.LoanConfigCategory => {
+  const products = Array.isArray(category?.products)
+    ? category.products.map(normalizeProduct).filter((product: Types.LoanConfigProduct) => product.id > 0)
+    : [];
+
+  return {
+    id: toNumber(category?.id),
+    name:
+      typeof category?.name === 'string' && category.name.trim().length > 0
+        ? category.name
+        : 'Loan Category',
+    description: category?.description ?? null,
+    products,
+  };
+};
+
+const normalizeLoanConfigType = (loanType: any): Types.LoanConfigLoanType => {
+  const categories = Array.isArray(loanType?.categories)
+    ? loanType.categories
+        .map(normalizeCategory)
+        .filter((category: Types.LoanConfigCategory) => category.id > 0 && category.products.length > 0)
+    : [];
+
+  return {
+    id: toNumber(loanType?.id),
+    name:
+      typeof loanType?.name === 'string' && loanType.name.trim().length > 0
+        ? loanType.name
+        : 'Loan Type',
+    description: loanType?.description ?? null,
+    categories,
+  };
+};
+
+const normalizeLoan = (loan: any): Types.LoanDetails => {
+  return {
+    ...loan,
+    id: String(loan.id),
+    loanId: String(loan.loanId),
+    userId: String(loan.userId),
+    loanAmount: toNumber(loan.loanAmount),
+    principalAmount: toNumber(loan.principalAmount),
+    interestRate: toNumber(loan.interestRate),
+    serviceCharge: toNumber(loan.serviceCharge),
+    totalRepayment: toNumber(loan.totalRepayment),
+    repaymentMonths: toNumber(loan.repaymentMonths),
+    monthlyPayment: toNumber(loan.monthlyPayment),
+    amountPaid: toNumber(loan.amountPaid),
+    amountRemaining: toNumber(loan.amountRemaining),
+  };
+};
 
 // ============ Authentication ============
 export const authService = {
-  async login(request: Types.LoginRequest): Promise<Types.LoginResponse> {
+  async login(request: Types.LoginRequest): Promise<Types.LoginOTPResponse> {
     if (USAGE_DEMO) {
       return {
         success: true,
-        user: {
-          id: 'user-123',
-          name: 'John Doe',
-          email: request.email || 'john@example.com',
-          phone: request.phone || '+260123456789',
-        },
-        token: 'demo-token-' + Date.now(),
-        refreshToken: 'demo-refresh-token',
+        message: 'OTP sent successfully',
+        otpId: 'otp-' + Date.now(),
       };
     }
     return apiCall('/auth/login', {
@@ -94,6 +249,39 @@ export const authService = {
     });
   },
 
+  async validatePinToken(token: string): Promise<Types.ValidatePinTokenResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'Token is valid',
+        email: 'demo@goodleaf.test',
+      };
+    }
+    return apiCall('/auth/validate-pin-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  async setPin(request: Types.SetPinRequest): Promise<Types.SetPinResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'PIN set successfully',
+      };
+    }
+    return apiCall('/auth/set-pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: request.token,
+        pin: request.pin,
+        confirm_pin: request.confirmPin ?? request.pin,
+        confirmPin: request.confirmPin ?? request.pin,
+        pin_confirmation: request.confirmPin ?? request.pin,
+      }),
+    });
+  },
+
   async register(request: any): Promise<any> {
     if (USAGE_DEMO) {
       return {
@@ -101,17 +289,88 @@ export const authService = {
         message: 'Registration successful',
         user: {
           id: 'user-' + Date.now(),
-          name: request.fullName,
+          name: request.firstName + ' ' + request.lastName,
+          firstName: request.firstName,
+          lastName: request.lastName,
           email: request.email,
-          phone: request.phoneNumber,
+          phone: request.phone,
         },
         token: 'demo-token-' + Date.now(),
         refreshToken: 'demo-refresh-token',
       };
     }
+
+    // Ensure all required fields are present for registration
+    const payload = {
+      firstName: request.firstName || '',
+      lastName: request.lastName || '',
+      email: request.email || '',
+      password: request.password || '',
+      phone: request.phone || '',
+      pin: request.pin || '',
+      loanProductId: request.loanProductId || 1,
+      institutionName: request.institutionName || null,
+      loanAmount: request.loanAmount || 0,
+      repaymentMonths: request.repaymentMonths || 0,
+      ...request // Include any additional fields
+    };
+
     return apiCall('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Register user and apply for loan in a single request
+  async registerWithLoanApplication(userData: any, loanData: any): Promise<any> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'Registration and loan application successful',
+        user: {
+          id: 'user-' + Date.now(),
+          name: userData.firstName + ' ' + userData.lastName,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          phone: userData.phone,
+        },
+        loan: {
+          id: 'loan-' + Date.now(),
+          userId: 'user-' + Date.now(),
+          type: loanData.type || 'Personal Loan',
+          amount: userData.loanAmount || loanData.amount,
+          status: 'pending',
+          tenure: userData.repaymentMonths || loanData.tenure,
+          interestRate: loanData.interestRate,
+          amountDue: loanData.amountDue,
+          totalRepayment: loanData.totalRepayment,
+        },
+        token: 'demo-token-' + Date.now(),
+        refreshToken: 'demo-refresh-token',
+      };
+    }
+
+    // Ensure all required fields are present before sending
+    const payload = {
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+      email: userData.email || '',
+      password: userData.password || '',
+      phone: userData.phone || '',
+      pin: userData.pin || '',
+      loanProductId: userData.loanProductId || 1,
+      institutionName: userData.institutionName || null,
+      loanAmount: userData.loanAmount || 0,
+      repaymentMonths: userData.repaymentMonths || 0,
+      ...userData // Include any additional fields
+    };
+
+    // Send the complete user data to the registration endpoint
+    // The backend expects all fields in a single request
+    return apiCall('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 
@@ -131,22 +390,27 @@ export const authService = {
 
   async verifyOTP(request: { otpId: string; otp: string }): Promise<Types.LoginResponse> {
     if (USAGE_DEMO) {
+      const user = normalizeAuthUser({
+        id: 'user-123',
+        name: 'John Doe',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        phone: '+260123456789',
+      });
+
       return {
         success: true,
-        user: {
-          id: 'user-123',
-          name: 'John Doe',
-          email: 'john@example.com',
-          phone: '+260123456789',
-        },
+        user,
         token: 'demo-token-' + Date.now(),
         refreshToken: 'demo-refresh-token',
       };
     }
-    return apiCall('/auth/verify-otp', {
+    const response = await apiCall<Types.LoginResponse>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+    return { ...response, user: normalizeAuthUser(response.user) };
   },
 
   logout(): void {
@@ -229,6 +493,95 @@ export const loanService = {
     });
   },
 
+  async getLoanConfig(): Promise<Types.LoanConfigLoanType[]> {
+    if (USAGE_DEMO) {
+      return [
+        {
+          id: 1,
+          name: 'Personal',
+          description: null,
+          categories: [
+            {
+              id: 1,
+              name: 'Salary Advance',
+              description: null,
+              products: [
+                {
+                  id: 1,
+                  name: 'Standard Personal Loan',
+                  description: null,
+                  terms: {
+                    principal: { min: 5000, default: 10000, max: 50000 },
+                    duration: { min: 6, default: 12, max: 60, period: 'month' },
+                    repayments: { min: 1, default: 1, max: 60 },
+                  },
+                  rates: {
+                    min: 1.5,
+                    default: 1.5,
+                    max: 1.5,
+                    period: 'per-month',
+                    methods: [
+                      { id: 1, name: 'Flat Rate', description: 'Flat rate interest' },
+                    ],
+                    types: [
+                      { id: 1, name: 'Percentage', description: 'Percentage based interest' },
+                    ],
+                  },
+                  repaymentCycles: [{ id: 5, name: 'Monthly' }],
+                  compliances: [],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: 2,
+          name: 'Business',
+          description: null,
+          categories: [
+            {
+              id: 2,
+              name: 'SME Loan',
+              description: null,
+              products: [
+                {
+                  id: 2,
+                  name: 'Standard Business Loan',
+                  description: null,
+                  terms: {
+                    principal: { min: 5000, default: 15000, max: 75000 },
+                    duration: { min: 6, default: 18, max: 60, period: 'month' },
+                    repayments: { min: 1, default: 1, max: 60 },
+                  },
+                  rates: {
+                    min: 1.8,
+                    default: 1.8,
+                    max: 1.8,
+                    period: 'per-month',
+                    methods: [
+                      { id: 2, name: 'Reducing Balance', description: 'Reducing balance installments' },
+                    ],
+                    types: [
+                      { id: 1, name: 'Percentage', description: 'Percentage based interest' },
+                    ],
+                  },
+                  repaymentCycles: [{ id: 5, name: 'Monthly' }],
+                  compliances: [],
+                },
+              ],
+            },
+          ],
+        },
+      ];
+    }
+
+    const response = await apiCall<unknown>('/loans/config');
+    const config = extractDataArray<any>(response);
+    return config
+      .map(normalizeLoanConfigType)
+      .filter((loanType) => loanType.id > 0 && loanType.categories.length > 0);
+  },
+
   async applyForLoan(request: Types.LoanApplicationRequest): Promise<Types.LoanApplicationResponse> {
     if (USAGE_DEMO) {
       return {
@@ -295,7 +648,9 @@ export const loanService = {
         updatedAt: new Date().toISOString(),
       };
     }
-    return apiCall(`/loans/${loanId}`);
+    const response = await apiCall<unknown>(`/loans/${loanId}`);
+    const loan = extractDataObject<any>(response);
+    return normalizeLoan(loan);
   },
 
   async getUserLoans(): Promise<Types.LoanDetails[]> {
@@ -351,7 +706,9 @@ export const loanService = {
         },
       ];
     }
-    return apiCall('/loans');
+    const response = await apiCall<unknown>('/loans');
+    const loans = extractDataArray<any>(response);
+    return loans.map(normalizeLoan);
   },
 
   async getRepaymentSchedule(loanId: string): Promise<Types.RepaymentSchedule[]> {
@@ -515,26 +872,11 @@ export const kycService = {
     }
 
     const formData = new FormData();
+    formData.append('userId', request.userId);
     formData.append('documentType', request.documentType);
     formData.append('file', request.file);
 
-    const token = localStorage.getItem('authToken');
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/kyc/upload`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Document upload failed');
-    }
-
-    return response.json();
+    return apiCallFormData('/kyc/upload', formData);
   },
 
   async getKYCStatus(): Promise<Types.KYCStatus> {

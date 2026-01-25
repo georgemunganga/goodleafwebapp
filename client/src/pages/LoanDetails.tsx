@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
-import { ArrowLeft, Download, Calendar, DollarSign, TrendingDown, Clock, Check } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { loanService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
+import { ArrowLeft, Calendar, Check, Clock, Download, TrendingDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useRoute } from "wouter";
 
 /**
  * Loan Details Page
@@ -11,27 +15,79 @@ import { ArrowLeft, Download, Calendar, DollarSign, TrendingDown, Clock, Check }
  */
 export default function LoanDetails() {
   const [, setLocation] = useLocation();
+  const [, params] = useRoute("/loans/:id");
+  const loanId = params?.id;
 
-  const loan = {
-    id: "GL-2025-001",
-    type: "Personal Loan",
-    amount: 10000,
-    outstanding: 7500,
-    status: "approved",
-    disbursedDate: "Dec 20, 2024",
-    nextPaymentDate: "Jan 20, 2025",
-    nextPaymentAmount: 500,
-    interestRate: 12.5,
-    tenure: 24,
-    monthlyPayment: 500,
-    progress: 25
-  };
+  const [loan, setLoan] = useState<Types.LoanDetails | null>(null);
+  const [schedule, setSchedule] = useState<Types.RepaymentSchedule[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const repaymentSchedule = [
-    { month: "Jan 2025", dueDate: "Jan 20", amount: 500, status: "upcoming" },
-    { month: "Dec 2024", dueDate: "Dec 20", amount: 500, status: "paid" },
-    { month: "Nov 2024", dueDate: "Nov 20", amount: 500, status: "paid" },
-  ];
+  useEffect(() => {
+    if (!loanId) {
+      setIsLoading(false);
+      setError("Loan not found.");
+      return;
+    }
+
+    const fetchLoan = async () => {
+      try {
+        setIsLoading(true);
+        const [loanDetails, repaymentSchedule] = await Promise.all([
+          loanService.getLoanDetails(loanId),
+          loanService.getRepaymentSchedule(loanId),
+        ]);
+        setLoan(loanDetails);
+        setSchedule(repaymentSchedule);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch loan details:", err);
+        setError("Failed to load loan details. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoan();
+  }, [loanId]);
+
+  const progress = useMemo(() => {
+    if (!loan || !loan.loanAmount) return 0;
+    return Math.round((loan.amountPaid / loan.loanAmount) * 100);
+  }, [loan]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner variant="spinner" size="lg" color="primary" />
+      </div>
+    );
+  }
+
+  if (!loan) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6">
+        <p className="text-gray-600 mb-4">{error || "Loan not found."}</p>
+        <Button onClick={() => setLocation("/loans")} className="rounded-xl bg-primary hover:bg-[#256339]">
+          Back to Loans
+        </Button>
+      </div>
+    );
+  }
+
+  const statusLabel = loan.status === "active"
+    ? "Active"
+    : loan.status === "completed"
+    ? "Completed"
+    : loan.status === "pending"
+    ? "Pending"
+    : loan.status === "rejected"
+    ? "Rejected"
+    : "Defaulted";
+
+  const nextPaymentLabel = loan.nextPaymentDate
+    ? new Date(loan.nextPaymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "-";
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
@@ -45,8 +101,8 @@ export default function LoanDetails() {
             <ArrowLeft className="w-5 h-5" />
             <span className="text-base font-semibold">Back</span>
           </button>
-          <h1 className="text-2xl font-bold mb-1">{loan.type}</h1>
-          <p className="text-white/70 text-base">{loan.id}</p>
+          <h1 className="text-2xl font-bold mb-1">{loan.loanType === "business" ? "Business" : "Personal"} Loan</h1>
+          <p className="text-white/70 text-base">{loan.loanId}</p>
         </div>
       </header>
 
@@ -56,17 +112,17 @@ export default function LoanDetails() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-500 font-semibold">LOAN STATUS</span>
-            <span className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold">Active</span>
+            <span className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold">{statusLabel}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-2">Loan Amount</p>
-              <p className="text-lg font-bold text-gray-900">K{loan.amount.toLocaleString()}</p>
+              <p className="text-lg font-bold text-gray-900">K{loan.loanAmount.toLocaleString()}</p>
             </div>
             <div className="bg-primary/5 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-2">Outstanding</p>
-              <p className="text-lg font-bold text-primary">K{loan.outstanding.toLocaleString()}</p>
+              <p className="text-lg font-bold text-primary">K{loan.amountRemaining.toLocaleString()}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-2">Interest Rate</p>
@@ -82,12 +138,12 @@ export default function LoanDetails() {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-600 font-semibold">Repayment Progress</span>
-              <span className="text-sm text-gray-600 font-semibold">{loan.progress}%</span>
+              <span className="text-sm text-gray-600 font-semibold">{progress}%</span>
             </div>
             <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-primary rounded-full transition-all"
-                style={{ width: `${loan.progress}%` }}
+                style={{ width: `${progress}%` }}
               ></div>
             </div>
           </div>
@@ -99,14 +155,16 @@ export default function LoanDetails() {
                 <Calendar className="w-5 h-5 text-gray-400" />
                 <span className="text-base text-gray-600 font-medium">Disbursed</span>
               </div>
-              <span className="text-base font-bold text-gray-900">{loan.disbursedDate}</span>
+              <span className="text-base font-bold text-gray-900">
+                {new Date(loan.approvalDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-gray-400" />
                 <span className="text-base text-gray-600 font-medium">Tenure</span>
               </div>
-              <span className="text-base font-bold text-gray-900">{loan.tenure} months</span>
+              <span className="text-base font-bold text-gray-900">{loan.repaymentMonths} months</span>
             </div>
           </div>
         </div>
@@ -116,8 +174,8 @@ export default function LoanDetails() {
           <p className="text-xs text-gray-600 mb-2 font-semibold">NEXT PAYMENT DUE</p>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.nextPaymentAmount.toLocaleString()}</p>
-              <p className="text-base text-gray-600 font-medium">{loan.nextPaymentDate}</p>
+              <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.monthlyPayment.toLocaleString()}</p>
+              <p className="text-base text-gray-600 font-medium">{nextPaymentLabel}</p>
             </div>
             <Button
               onClick={() => setLocation("/repayment")}
@@ -134,21 +192,28 @@ export default function LoanDetails() {
             <h3 className="text-lg font-bold text-gray-900">Repayment Schedule</h3>
           </div>
           <div className="divide-y divide-gray-100">
-            {repaymentSchedule.map((payment, index) => (
-              <div key={index} className="p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-base font-bold text-gray-900">{payment.month}</p>
-                  <p className="text-sm text-gray-500">Due: {payment.dueDate}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-base font-bold text-gray-900">K{payment.amount.toLocaleString()}</p>
-                  <p className={`text-sm font-semibold flex items-center gap-1 justify-end ${payment.status === "paid" ? "text-green-600" : "text-amber-600"}`}>
-                    {payment.status === "paid" && <Check className="w-4 h-4" />}
-                    {payment.status === "paid" ? "Paid" : "Upcoming"}
-                  </p>
-                </div>
-              </div>
-            ))}
+            {schedule.length > 0 ? (
+              schedule.map((payment) => {
+                const dueDate = new Date(payment.dueDate);
+                return (
+                  <div key={payment.id} className="p-5 flex items-center justify-between">
+                    <div>
+                      <p className="text-base font-bold text-gray-900">{dueDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}</p>
+                      <p className="text-sm text-gray-500">Due: {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-bold text-gray-900">K{payment.amount.toLocaleString()}</p>
+                      <p className={`text-sm font-semibold flex items-center gap-1 justify-end ${payment.status === "paid" ? "text-green-600" : "text-amber-600"}`}>
+                        {payment.status === "paid" && <Check className="w-4 h-4" />}
+                        {payment.status === "paid" ? "Paid" : "Upcoming"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-5 text-center text-sm text-gray-500">No repayment schedule available yet.</div>
+            )}
           </div>
           <div className="p-4 bg-gray-50 text-center">
             <button className="text-primary font-bold text-base hover:underline">View Full Schedule</button>
@@ -158,7 +223,7 @@ export default function LoanDetails() {
         {/* Action Buttons */}
         <div className="space-y-3">
           <Button
-            onClick={() => setLocation("/early-repay")}
+            onClick={() => setLocation("/early-repayment")}
             variant="outline"
             className="w-full h-12 border-2 border-primary text-primary font-bold text-base rounded-xl hover:bg-primary/5"
           >

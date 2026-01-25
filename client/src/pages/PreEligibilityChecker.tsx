@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { useState } from "react";
+import { loanService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 
 /**
  * Pre-Eligibility Checker Page
@@ -14,26 +16,51 @@ export default function PreEligibilityChecker() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<"form" | "result">("form");
   const [result, setResult] = useState<"eligible" | "maybe" | "ineligible" | null>(null);
+  const [apiResult, setApiResult] = useState<Types.PreEligibilityResponse | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     loanType: "personal",
     employmentStatus: "employed",
     monthlyIncome: "",
-    existingDebt: ""
+    existingDebt: "",
+    loanAmount: ""
   });
 
-  const handleCheck = () => {
+  const handleCheck = async () => {
     const income = parseInt(formData.monthlyIncome) || 0;
     const debt = parseInt(formData.existingDebt) || 0;
+    const desiredLoanAmount = parseInt(formData.loanAmount) || 0;
 
-    if (income >= 5000 && debt < income * 2) {
-      setResult("eligible");
-    } else if (income >= 3000 && debt < income * 3) {
-      setResult("maybe");
-    } else {
-      setResult("ineligible");
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await loanService.checkEligibility({
+        loanType: formData.loanType as Types.PreEligibilityRequest["loanType"],
+        employmentStatus: formData.employmentStatus,
+        monthlyIncome: income,
+        existingDebt: debt,
+        loanAmount: desiredLoanAmount,
+      });
+      setApiResult(response);
+
+      if (response.eligible) {
+        setResult("eligible");
+      } else if (response.score >= 50) {
+        setResult("maybe");
+      } else {
+        setResult("ineligible");
+      }
+
+      setStep("result");
+    } catch (err) {
+      console.error("Eligibility check failed:", err);
+      setError("Eligibility check failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setStep("result");
   };
 
   if (step === "result") {
@@ -63,9 +90,16 @@ export default function PreEligibilityChecker() {
                   <CheckCircle className="w-12 h-12 text-green-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Likely Eligible</h2>
-                <p className="text-base text-gray-600 mb-8">
-                  Great news! Based on your information, you're likely to qualify for a loan with us.
+                <p className="text-base text-gray-600 mb-4">
+                  {apiResult?.message || "Great news! Based on your information, you're likely to qualify for a loan with us."}
                 </p>
+                {apiResult && (
+                  <div className="bg-green-50 rounded-xl p-4 text-left mb-6">
+                    <p className="text-sm text-green-800">Estimated score: {apiResult.score}</p>
+                    <p className="text-sm text-green-800">Max loan amount: K{apiResult.maxLoanAmount.toLocaleString()}</p>
+                    <p className="text-sm text-green-800">Interest rate: {apiResult.interestRate}%</p>
+                  </div>
+                )}
                 <Button
                   onClick={() => setLocation("/apply")}
                   className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
@@ -81,9 +115,16 @@ export default function PreEligibilityChecker() {
                   <AlertCircle className="w-12 h-12 text-amber-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Possibly Eligible</h2>
-                <p className="text-base text-gray-600 mb-8">
-                  You might qualify, but we'll need to review your full application. Our team will assess your eligibility in detail.
+                <p className="text-base text-gray-600 mb-4">
+                  {apiResult?.message || "You might qualify, but we'll need to review your full application. Our team will assess your eligibility in detail."}
                 </p>
+                {apiResult && (
+                  <div className="bg-amber-50 rounded-xl p-4 text-left mb-6">
+                    <p className="text-sm text-amber-800">Estimated score: {apiResult.score}</p>
+                    <p className="text-sm text-amber-800">Max loan amount: K{apiResult.maxLoanAmount.toLocaleString()}</p>
+                    <p className="text-sm text-amber-800">Interest rate: {apiResult.interestRate}%</p>
+                  </div>
+                )}
                 <Button
                   onClick={() => setLocation("/apply")}
                   className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
@@ -99,9 +140,16 @@ export default function PreEligibilityChecker() {
                   <XCircle className="w-12 h-12 text-red-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Not Currently Eligible</h2>
-                <p className="text-base text-gray-600 mb-8">
-                  Based on your information, you don't currently meet our eligibility criteria. Please check back later or contact our support team.
+                <p className="text-base text-gray-600 mb-4">
+                  {apiResult?.message || "Based on your information, you don't currently meet our eligibility criteria. Please check back later or contact our support team."}
                 </p>
+                {apiResult && (
+                  <div className="bg-red-50 rounded-xl p-4 text-left mb-6">
+                    <p className="text-sm text-red-800">Estimated score: {apiResult.score}</p>
+                    <p className="text-sm text-red-800">Max loan amount: K{apiResult.maxLoanAmount.toLocaleString()}</p>
+                    <p className="text-sm text-red-800">Interest rate: {apiResult.interestRate}%</p>
+                  </div>
+                )}
                 <Button
                   onClick={() => setLocation("/dashboard")}
                   className="w-full h-12 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold text-base rounded-xl"
@@ -136,6 +184,11 @@ export default function PreEligibilityChecker() {
       {/* Main Content */}
       <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
         <div className="space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
           {/* Loan Type */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <label className="block text-base font-bold text-gray-900 mb-4">Loan Type</label>
@@ -187,6 +240,19 @@ export default function PreEligibilityChecker() {
             />
           </div>
 
+          {/* Desired Loan Amount */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <label className="block text-base font-bold text-gray-900 mb-2">Desired Loan Amount (K)</label>
+            <p className="text-sm text-gray-500 mb-4">How much are you looking to borrow?</p>
+            <input
+              type="number"
+              value={formData.loanAmount}
+              onChange={(e) => setFormData({ ...formData, loanAmount: e.target.value })}
+              placeholder="Enter amount"
+              className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+            />
+          </div>
+
           {/* Existing Debt */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <label className="block text-base font-bold text-gray-900 mb-2">Existing Monthly Debt (K)</label>
@@ -203,9 +269,10 @@ export default function PreEligibilityChecker() {
           {/* Check Button */}
           <Button
             onClick={handleCheck}
+            disabled={isSubmitting}
             className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
           >
-            Check Eligibility
+            {isSubmitting ? "Checking..." : "Check Eligibility"}
           </Button>
         </div>
       </main>

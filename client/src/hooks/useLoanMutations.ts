@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { loanService } from '@/lib/api-service';
 import { queryKeys } from './query-keys';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import * as Types from '@/lib/api-types';
+import { apiCall } from '@/lib/api-config';
 
 /**
  * Loan Mutation Hooks
@@ -17,22 +18,15 @@ export function useSubmitLoanApplication() {
     mutationFn: async (applicationData: any) => {
       // Generate idempotency key to prevent duplicate submissions
       const idempotencyKey = uuidv4();
-      
+
       // Add to request headers
-      const response = await fetch('/api/loans/apply', {
+      return apiCall('/loans/apply', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify(applicationData),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit application');
-      }
-
-      return response.json();
     },
     onSuccess: (data) => {
       // Invalidate relevant queries
@@ -56,20 +50,17 @@ export function useInitiateRepayment() {
       // Generate idempotency key for payment safety
       const idempotencyKey = uuidv4();
 
-      const response = await fetch('/api/repayment/initiate', {
+      return apiCall('/payments/submit', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
-        body: JSON.stringify(repaymentData),
+        body: JSON.stringify({
+          loanId: repaymentData.loanId,
+          amount: repaymentData.amount,
+          paymentMethod: repaymentData.method as Types.PaymentRequest['paymentMethod'],
+        }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to initiate repayment');
-      }
-
-      return response.json();
     },
     onSuccess: (data, variables) => {
       // Invalidate loan details and repayment schedule
@@ -94,17 +85,10 @@ export function useUpdateLoan() {
 
   return useMutation({
     mutationFn: async (data: { loanId: string; updates: any }) => {
-      const response = await fetch(`/api/loans/${data.loanId}`, {
+      return apiCall(`/loans/${data.loanId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data.updates),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update loan');
-      }
-
-      return response.json();
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ 

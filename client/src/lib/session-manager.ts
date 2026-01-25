@@ -3,6 +3,8 @@
  * Handles authentication tokens, session timeouts, and token refresh
  */
 
+import { apiCall } from './api-config';
+
 const TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
@@ -135,24 +137,12 @@ export const sessionManager = {
         return false;
       }
 
-      // Call refresh endpoint
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/auth/refresh`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refreshToken }),
-        }
-      );
+      // Call refresh endpoint using centralized API config
+      const data = await apiCall('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
 
-      if (!response.ok) {
-        this.clearSession();
-        return false;
-      }
-
-      const data = await response.json();
       this.saveTokens(data.token, data.refreshToken);
       return true;
     } catch (error) {

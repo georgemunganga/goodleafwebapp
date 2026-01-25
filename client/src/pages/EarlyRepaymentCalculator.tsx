@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useLocation } from "wouter";
+import { loanService, paymentService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 import { ChevronLeft, TrendingDown, Zap, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
 
 /**
  * Early Repayment Calculator Page
@@ -13,23 +15,104 @@ import { useState } from "react";
  */
 export default function EarlyRepaymentCalculator() {
   const [, setLocation] = useLocation();
-  const [paymentAmount, setPaymentAmount] = useState("7500");
+  const [paymentAmount, setPaymentAmount] = useState("0");
   const [calculationType, setCalculationType] = useState<"partial" | "full">("partial");
+  const [loanInfo, setLoanInfo] = useState<Types.LoanDetails | null>(null);
+  const [calculation, setCalculation] = useState<Types.EarlyRepaymentCalculation | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const loanInfo = {
-    loanId: "GL-2025-001",
-    outstanding: 7500,
-    totalRepayment: 11000,
-    monthlyPayment: 916.67,
-    remainingMonths: 12,
-    interestRate: 15
+  useEffect(() => {
+    const fetchLoan = async () => {
+      try {
+        const loans = await loanService.getUserLoans();
+        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        if (!activeLoan) {
+          setError("No active loan found for early repayment.");
+          return;
+        }
+        setLoanInfo(activeLoan);
+        setPaymentAmount(activeLoan.amountRemaining.toFixed(2));
+      } catch (err) {
+        console.error("Failed to load loans:", err);
+        setError("Failed to load loan information.");
+      }
+    };
+
+    fetchLoan();
+  }, []);
+
+  const repaymentAmount = useMemo(() => {
+    if (!loanInfo) return 0;
+    return calculationType === "full"
+      ? loanInfo.amountRemaining
+      : Math.min(parseFloat(paymentAmount) || 0, loanInfo.amountRemaining);
+  }, [calculationType, loanInfo, paymentAmount]);
+
+  useEffect(() => {
+    if (!loanInfo || !repaymentAmount) {
+      setCalculation(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCalculating(true);
+        const result = await paymentService.calculateEarlyRepayment({
+          loanId: loanInfo.id,
+          repaymentAmount,
+        });
+        setCalculation(result);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to calculate early repayment:", err);
+        setError("Failed to calculate early repayment.");
+      } finally {
+        setIsCalculating(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [loanInfo, repaymentAmount]);
+
+  const newOutstanding = loanInfo
+    ? Math.max(0, loanInfo.amountRemaining - repaymentAmount)
+    : 0;
+
+  const interestSavings = calculation?.interestSaved || 0;
+
+  const monthsSaved = useMemo(() => {
+    if (!loanInfo || !calculation?.newMaturityDate) return 0;
+    const currentMaturity = new Date(loanInfo.maturityDate).getTime();
+    const newMaturity = new Date(calculation.newMaturityDate).getTime();
+    if (!currentMaturity || !newMaturity || newMaturity >= currentMaturity) return 0;
+    const diffMonths = Math.round((currentMaturity - newMaturity) / (1000 * 60 * 60 * 24 * 30));
+    return Math.max(0, diffMonths);
+  }, [calculation, loanInfo]);
+
+  const handleSubmit = async () => {
+    if (!loanInfo || !repaymentAmount) return;
+
+    try {
+      setIsSubmitting(true);
+      const response = await paymentService.submitEarlyRepayment({
+        loanId: loanInfo.id,
+        repaymentAmount,
+      });
+
+      if (response.success) {
+        setLocation("/repayment");
+      } else {
+        setError(response.message || "Failed to submit early repayment.");
+      }
+    } catch (err) {
+      console.error("Failed to submit early repayment:", err);
+      setError("Failed to submit early repayment.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const amount = calculationType === "full" ? loanInfo.outstanding : (parseFloat(paymentAmount) || 0);
-  const interestSavings = (amount / loanInfo.outstanding) * (loanInfo.totalRepayment - loanInfo.outstanding);
-  const newOutstanding = Math.max(0, loanInfo.outstanding - amount);
-  const newRemainingMonths = calculationType === "full" ? 0 : Math.ceil((newOutstanding / loanInfo.monthlyPayment));
-  const monthsSaved = loanInfo.remainingMonths - newRemainingMonths;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -37,7 +120,7 @@ export default function EarlyRepaymentCalculator() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
         <div className="flex items-center h-14 px-4">
           <button
-            onClick={() => setLocation("/loans/1")}
+            onClick={() => setLocation("/loans")}
             className="w-10 h-10 flex items-center justify-center -ml-2"
           >
             <ChevronLeft className="w-6 h-6 text-slate-700" />
@@ -51,20 +134,26 @@ export default function EarlyRepaymentCalculator() {
 
       {/* Main Content */}
       <main className="flex-1 px-4 py-6 pb-24 space-y-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         {/* Current Loan Status */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-slate-500">{loanInfo.loanId}</p>
-            <p className="text-xs text-slate-500">{loanInfo.remainingMonths} months left</p>
+            <p className="text-xs text-slate-500">{loanInfo?.loanId || "Loan"}</p>
+            <p className="text-xs text-slate-500">{loanInfo?.repaymentMonths || 0} months left</p>
           </div>
           <div className="flex items-baseline justify-between">
             <div>
               <p className="text-xs text-slate-500">Outstanding Balance</p>
-              <p className="text-2xl font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-primary">K{loanInfo?.amountRemaining.toLocaleString() || "0"}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Interest Rate</p>
-              <p className="font-bold text-slate-900">{loanInfo.interestRate}%</p>
+              <p className="font-bold text-slate-900">{loanInfo?.interestRate || 0}%</p>
             </div>
           </div>
         </div>
@@ -107,10 +196,10 @@ export default function EarlyRepaymentCalculator() {
           <h3 className="font-bold text-slate-900 mb-3 text-sm">
             {calculationType === "full" ? "Settlement Amount" : "Payment Amount"}
           </h3>
-          
+
           {calculationType === "full" ? (
             <div className="bg-primary/5 rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-primary">K{loanInfo?.amountRemaining.toLocaleString() || "0"}</p>
               <p className="text-xs text-slate-600 mt-1">Full settlement amount</p>
             </div>
           ) : (
@@ -121,9 +210,10 @@ export default function EarlyRepaymentCalculator() {
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 placeholder="Enter amount"
                 className="h-12 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0 text-xl font-bold text-center"
+                disabled={!loanInfo}
               />
               <p className="text-xs text-slate-500 text-center">
-                Max: K{loanInfo.outstanding.toLocaleString()}
+                Max: K{loanInfo?.amountRemaining.toLocaleString() || "0"}
               </p>
             </div>
           )}
@@ -132,7 +222,7 @@ export default function EarlyRepaymentCalculator() {
         {/* Impact Summary */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
           <h3 className="font-bold text-slate-900 mb-3 text-sm">Impact Summary</h3>
-          
+
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-green-50 rounded-xl p-3 text-center">
               <p className="text-xs text-green-700">Interest Savings</p>
@@ -147,8 +237,8 @@ export default function EarlyRepaymentCalculator() {
               <p className="text-xl font-bold text-slate-900">K{newOutstanding.toLocaleString()}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-slate-600">Remaining</p>
-              <p className="text-xl font-bold text-slate-900">{newRemainingMonths} mo</p>
+              <p className="text-xs text-slate-600">Calculation</p>
+              <p className="text-xl font-bold text-slate-900">{isCalculating ? "..." : "Ready"}</p>
             </div>
           </div>
         </div>
@@ -178,11 +268,12 @@ export default function EarlyRepaymentCalculator() {
       {/* Fixed Bottom Action */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 safe-area-bottom">
         <Button
-          onClick={() => setLocation("/repayment")}
+          onClick={handleSubmit}
+          disabled={!loanInfo || !repaymentAmount || isSubmitting}
           className="w-full rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-12"
         >
           <TrendingDown className="w-5 h-5 mr-2" />
-          Proceed to Payment
+          {isSubmitting ? "Submitting..." : "Proceed to Payment"}
         </Button>
       </div>
     </div>

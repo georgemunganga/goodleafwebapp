@@ -1,7 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, Lock, Smartphone, Clock, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { securityService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 
 /**
  * Security Settings Page
@@ -13,10 +15,53 @@ import { useState } from "react";
 export default function SecuritySettings() {
   const [, setLocation] = useLocation();
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [sessions] = useState([
     { device: "iPhone 12", location: "Lusaka, Zambia", lastActive: "2 hours ago", isCurrent: true },
     { device: "Chrome on Windows", location: "Lusaka, Zambia", lastActive: "1 day ago", isCurrent: false }
   ]);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setIsLoading(true);
+        const settings = await securityService.getSecuritySettings();
+        setTwoFAEnabled(settings.twoFactorEnabled);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to load security settings:", err);
+        setError("Failed to load security settings.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleTwoFactorToggle = async () => {
+    if (isLoading || isSaving) return;
+
+    try {
+      setIsSaving(true);
+      if (!twoFAEnabled) {
+        const response = await securityService.enableTwoFactor({ method: "sms" } as Types.EnableTwoFactorRequest);
+        if (!response.success) {
+          setError(response.message || "Failed to enable two-factor authentication.");
+          return;
+        }
+      }
+      setTwoFAEnabled(!twoFAEnabled);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to update 2FA:", err);
+      setError("Failed to update two-factor authentication.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
@@ -37,6 +82,12 @@ export default function SecuritySettings() {
       {/* Main Content */}
       <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
         <div className="space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
           {/* Two-Factor Authentication */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-3">
@@ -50,10 +101,11 @@ export default function SecuritySettings() {
                 </div>
               </div>
               <button
-                onClick={() => setTwoFAEnabled(!twoFAEnabled)}
+                onClick={handleTwoFactorToggle}
                 className={`w-14 h-8 rounded-full transition-colors ${
                   twoFAEnabled ? "bg-primary" : "bg-gray-300"
                 }`}
+                disabled={isLoading || isSaving}
               >
                 <div
                   className={`w-6 h-6 bg-white rounded-full transition-transform ${
@@ -63,7 +115,7 @@ export default function SecuritySettings() {
               </button>
             </div>
             {twoFAEnabled && (
-              <p className="text-sm text-green-600 font-medium">✓ Enabled</p>
+              <p className="text-sm text-green-600 font-medium">Enabled</p>
             )}
           </div>
 

@@ -248,3 +248,25 @@
     }
   }
 }
+
+@keyframes range-hint-flash {
+  0%, 100% {
+    color: #6b7280;
+  }
+  20%, 60% {
+    color: #dc2626;
+  }
+  40%, 80% {
+    color: #6b7280;
+  }
+}
+
+.range-hint-alert {
+  animation: range-hint-flash 0.9s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .range-hint-alert {
+    animation: none;
+  }
+}

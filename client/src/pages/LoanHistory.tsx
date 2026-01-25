@@ -3,9 +3,12 @@ import { useLocation } from "wouter";
 import { ChevronRight, Search, X, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ListSkeletonLoader } from "@/components/ui/skeleton-loader";
+import { loanService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 
 interface Loan {
   id: string;
+  reference: string;
   type: string;
   amount: number;
   status: "approved" | "repaid" | "rejected" | "pending";
@@ -27,51 +30,62 @@ export default function LoanHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loans, setLoans] = useState<Loan[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
+    const fetchLoans = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedLoans = await loanService.getUserLoans();
+        const mappedLoans = fetchedLoans.map((loan) => {
+          const progress = loan.loanAmount > 0 ? Math.round((loan.amountPaid / loan.loanAmount) * 100) : 0;
+          const loanTypeLabel = loan.loanType === "business" ? "Business Loan" : "Personal Loan";
+          return {
+            id: loan.id,
+            reference: loan.loanId,
+            type: loanTypeLabel,
+            amount: loan.loanAmount,
+            status: mapLoanStatus(loan.status),
+            date: new Date(loan.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            outstanding: loan.amountRemaining,
+            progress,
+          } as Loan;
+        });
+        setLoans(mappedLoans);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch loans:", err);
+        setError("Failed to load loans. Please try again.");
+        setLoans([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoans();
   }, []);
 
-  const loans: Loan[] = [
-    {
-      id: "GL-2025-001",
-      type: "Personal Loan",
-      amount: 10000,
-      status: "approved",
-      date: "Dec 20, 2024",
-      outstanding: 7500,
-      progress: 25
-    },
-    {
-      id: "GL-2024-012",
-      type: "Personal Loan",
-      amount: 5000,
-      status: "repaid",
-      date: "Aug 15, 2024",
-      progress: 100
-    },
-    {
-      id: "GL-2024-008",
-      type: "Business Loan",
-      amount: 50000,
-      status: "approved",
-      date: "May 10, 2024",
-      outstanding: 35000,
-      progress: 30
-    },
-    {
-      id: "GL-2024-003",
-      type: "Personal Loan",
-      amount: 8000,
-      status: "rejected",
-      date: "Feb 28, 2024"
+  function mapLoanStatus(status: Types.LoanDetails["status"]): Loan["status"] {
+    switch (status) {
+      case "active":
+        return "approved";
+      case "completed":
+        return "repaid";
+      case "pending":
+        return "pending";
+      case "rejected":
+      case "defaulted":
+        return "rejected";
+      default:
+        return "pending";
     }
-  ];
+  }
 
   const filteredLoans = loans.filter(loan => {
     const matchesSearch = 
       loan.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      loan.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
       loan.type.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || loan.status === filterStatus;
     
@@ -169,6 +183,11 @@ export default function LoanHistory() {
       {/* Main Content */}
       <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
         {/* Results Count */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
         <p className="text-sm text-gray-500 mb-4">
           {filteredLoans.length} loan{filteredLoans.length !== 1 ? "s" : ""} found
         </p>
@@ -185,7 +204,7 @@ export default function LoanHistory() {
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-gray-900 text-lg truncate">{loan.type}</h3>
-                    <p className="text-sm text-gray-500 truncate">{loan.id}</p>
+                    <p className="text-sm text-gray-500 truncate">{loan.reference}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${getStatusStyle(loan.status)}`}>

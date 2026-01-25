@@ -130,10 +130,12 @@ export function useAuth() {
       try {
         const { authService } = await import('@/lib/api-service');
         const response = await authService.login(request);
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('refreshToken', response.refreshToken);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        setUser(response.user);
+        if ('token' in response && response.token) {
+          localStorage.setItem('authToken', response.token);
+          localStorage.setItem('refreshToken', response.refreshToken);
+          localStorage.setItem('user', JSON.stringify(response.user));
+          setUser(response.user);
+        }
         return response;
       } catch (err: any) {
         const apiError: Types.ApiError = {

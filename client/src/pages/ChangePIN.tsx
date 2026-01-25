@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, Check } from "lucide-react";
 import { useState } from "react";
+import { userService } from "@/lib/api-service";
+import { toast } from "sonner";
 
 /**
  * Change PIN Page
@@ -15,6 +17,7 @@ export default function ChangePIN() {
   const [currentPIN, setCurrentPIN] = useState("");
   const [newPIN, setNewPIN] = useState("");
   const [confirmPIN, setConfirmPIN] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleVerifyCurrent = () => {
     if (currentPIN.length === 6) {
@@ -22,9 +25,23 @@ export default function ChangePIN() {
     }
   };
 
-  const handleSetNewPIN = () => {
-    if (newPIN === confirmPIN && newPIN.length === 6) {
-      setStep("success");
+  const handleSetNewPIN = async () => {
+    if (newPIN !== confirmPIN || newPIN.length !== 6) return;
+
+    try {
+      setIsSubmitting(true);
+      const response = await userService.changePIN(currentPIN, newPIN);
+      if (response.success) {
+        toast.success(response.message || "PIN changed successfully");
+        setStep("success");
+      } else {
+        toast.error(response.message || "Failed to change PIN");
+      }
+    } catch (err: any) {
+      console.error("Failed to change PIN:", err);
+      toast.error(err.message || "Failed to change PIN");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -110,10 +127,10 @@ export default function ChangePIN() {
             {/* Confirm Button */}
             <Button
               onClick={handleSetNewPIN}
-              disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
+              disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
               className="w-full h-12 bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-bold text-base rounded-xl"
             >
-              Confirm New PIN
+              {isSubmitting ? "Updating..." : "Confirm New PIN"}
             </Button>
           </div>
         </main>

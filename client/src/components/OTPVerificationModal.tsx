@@ -43,6 +43,7 @@ export const OTPVerificationModal = React.forwardRef<
     const [otp, setOtp] = useState('');
     const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isResending, setIsResending] = useState(false);
     const [error, setError] = useState('');
     const [resendCount, setResendCount] = useState(0);
 
@@ -99,10 +100,17 @@ export const OTPVerificationModal = React.forwardRef<
 
     // Handle resend OTP
     const handleResendOTP = async () => {
-      if (!onResendOTP) return;
+      if (!onResendOTP || isResending) return;
 
+      setIsResending(true);
       try {
-        await onResendOTP();
+        const timeoutMs = 10000;
+        await Promise.race([
+          onResendOTP(),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Request timed out. Please try again.')), timeoutMs);
+          }),
+        ]);
         setTimeLeft(300); // Reset timer
         setOtp('');
         setError('');
@@ -110,6 +118,8 @@ export const OTPVerificationModal = React.forwardRef<
         toast.success('OTP sent successfully!');
       } catch (err: any) {
         setError(err.message || 'Failed to resend OTP');
+      } finally {
+        setIsResending(false);
       }
     };
 
@@ -218,11 +228,13 @@ export const OTPVerificationModal = React.forwardRef<
             <p className="text-sm text-gray-600">Didn't receive the code?</p>
             <button
               onClick={handleResendOTP}
-              disabled={isVerifying || !onResendOTP || resendCount >= 3}
+              disabled={isVerifying || isResending || !onResendOTP || resendCount >= 3}
               className="text-sm font-semibold text-[#2e7146] hover:underline disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {resendCount >= 3
                 ? 'Too many attempts. Try again later.'
+                : isResending
+                ? 'Resending...'
                 : `Resend Code${resendCount > 0 ? ` (${resendCount}/3)` : ''}`}
             </button>
           </div>

@@ -2,6 +2,8 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Phone, Mail, CheckCircle, Lock } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { authService } from "@/lib/api-service";
+import { toast } from "sonner";
 
 type Step = "method" | "verify" | "reset" | "success";
 type Method = "phone" | "email";
@@ -21,10 +23,28 @@ export default function ForgotPIN() {
   const [verificationCode, setVerificationCode] = useState("");
   const [newPIN, setNewPIN] = useState("");
   const [confirmPIN, setConfirmPIN] = useState("");
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSendCode = () => {
-    if (identifier) {
+  const handleSendCode = async () => {
+    if (!identifier) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await authService.forgotPIN({
+        email: method === "email" ? identifier : "",
+        phone: method === "phone" ? identifier : "",
+      });
+      setVerificationId(response.verificationId);
       setStep("verify");
+      toast.success("Verification code sent.");
+    } catch (err: any) {
+      console.error("Failed to request reset code:", err);
+      setError(err.message || "Failed to send verification code.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -34,9 +54,32 @@ export default function ForgotPIN() {
     }
   };
 
-  const handleResetPIN = () => {
-    if (newPIN === confirmPIN && newPIN.length === 6) {
-      setStep("success");
+  const handleResetPIN = async () => {
+    if (newPIN !== confirmPIN || newPIN.length !== 6) return;
+    if (!verificationId) {
+      setError("Missing verification session. Please resend the code.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await authService.resetPIN({
+        verificationId,
+        newPin: newPIN,
+        confirmPin: confirmPIN,
+      });
+      if (response.success) {
+        setStep("success");
+      } else {
+        setError(response.message || "Failed to reset PIN.");
+      }
+    } catch (err: any) {
+      console.error("Failed to reset PIN:", err);
+      setError(err.message || "Failed to reset PIN.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -119,6 +162,11 @@ export default function ForgotPIN() {
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Reset Your PIN</h2>
               <p className="text-gray-600">Verify your identity to create a new PIN</p>
             </div>
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
 
             {/* Step 1: Select Method */}
             {step === "method" && (
@@ -165,10 +213,10 @@ export default function ForgotPIN() {
 
                 <Button
                   onClick={handleSendCode}
-                  disabled={!identifier}
+                  disabled={!identifier || isSubmitting}
                   className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
                 >
-                  Send Verification Code
+                  {isSubmitting ? "Sending..." : "Send Verification Code"}
                 </Button>
               </div>
             )}
@@ -258,10 +306,10 @@ export default function ForgotPIN() {
 
                 <Button
                   onClick={handleResetPIN}
-                  disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
+                  disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
                   className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
                 >
-                  Reset PIN
+                  {isSubmitting ? "Resetting..." : "Reset PIN"}
                 </Button>
               </div>
             )}
@@ -285,6 +333,11 @@ export default function ForgotPIN() {
 
         {/* Content */}
         <main className="flex-1 px-5 py-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
           {step === "method" && (
             <div className="space-y-6">
               <div>
@@ -334,10 +387,10 @@ export default function ForgotPIN() {
 
               <Button
                 onClick={handleSendCode}
-                disabled={!identifier}
+                disabled={!identifier || isSubmitting}
                 className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
               >
-                Send Verification Code
+                {isSubmitting ? "Sending..." : "Send Verification Code"}
               </Button>
             </div>
           )}
@@ -409,10 +462,10 @@ export default function ForgotPIN() {
 
               <Button
                 onClick={handleResetPIN}
-                disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN}
+                disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
                 className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
               >
-                Reset PIN
+                {isSubmitting ? "Resetting..." : "Reset PIN"}
               </Button>
             </div>
           )}

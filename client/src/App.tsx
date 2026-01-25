@@ -17,6 +17,7 @@ import { ModalRenderer } from "./components/ModalRenderer";
 // Pages
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+import SetPin from "./pages/SetPin";
 import Dashboard from "./pages/Dashboard";
 import LoanApplication from "./pages/LoanApplication";
 import LoanApplicationSuccess from "./pages/LoanApplicationSuccess";
@@ -42,6 +43,7 @@ function Router() {
   return (
     <Switch>
       <Route path={"/login"} component={Login} />
+      <Route path={"/set-pin"} component={SetPin} />
       <Route path={"/forgot-pin"} component={ForgotPIN} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/privacy"} component={Privacy} />
@@ -83,12 +85,13 @@ export default function App() {
               <NetworkProvider>
                 <AuthProvider>
                   <ModalProvider>
-                    <GlobalLoadingIndicator />
-                    <OfflineIndicator />
-                    <ModalRenderer />
-                    <Router />
-                  </ModalProvider>
-                </AuthProvider>
+                  <GlobalLoadingIndicator />
+                  <OfflineIndicator />
+                  <ModalRenderer />
+                  <Toaster />
+                  <Router />
+                </ModalProvider>
+              </AuthProvider>
               </NetworkProvider>
             </CurrencyProvider>
           </QueryProvider>

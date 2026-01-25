@@ -3,6 +3,8 @@
  * Logs user actions and security events for compliance and debugging
  */
 
+import { apiCall } from './api-config';
+
 export enum AuditEventType {
   // Authentication events
   LOGIN_ATTEMPT = 'LOGIN_ATTEMPT',
@@ -249,17 +251,10 @@ class AuditLogger {
   private sendToBackend(log: AuditLog): void {
     // Only send critical events and errors to backend immediately
     if (log.severity === 'critical' || log.severity === 'error') {
-      fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/audit/log`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('authToken') || ''}`,
-          },
-          body: JSON.stringify(log),
-        }
-      ).catch((error) => {
+      apiCall('/audit/log', {
+        method: 'POST',
+        body: JSON.stringify(log),
+      }).catch((error) => {
         console.error('Failed to send audit log to backend:', error);
       });
     }

@@ -13,6 +13,14 @@ type Step = 1 | 2 | 3;
 type LoanType = "personal" | "business";
 type LoanCategory = "civil-servant" | "private" | "collateral" | "farmer";
 
+interface UserData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
 interface ApplicationData {
   loanType: LoanType;
   loanCategory: LoanCategory;
@@ -33,8 +41,21 @@ export default function LoanApplication() {
   const [, setLocation] = useLocation();
   const { createLoan, loading } = useLoanOperations();
   const { calculateLoanTerms } = useEligibility();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, register, registerWithLoanApplication } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>(1);
+  const [userData, setUserData] = useState<UserData>({
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+  });
+
+  const [registrationPayload, setRegistrationPayload] = useState({
+    pin: "",
+    loanProductId: 1,
+    institutionName: null as string | null,
+  });
   const [formData, setFormData] = useState<ApplicationData>({
     loanType: "personal",
     loanCategory: "civil-servant",
@@ -111,37 +132,52 @@ export default function LoanApplication() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.pin.length < 4) {
-      setPinError("Please enter your PIN");
+    if (registrationPayload.pin.length < 4) {
+      setPinError("Please enter your 4-digit PIN");
       return;
     }
     setPinError("");
 
-    if (!isAuthenticated) {
-      toast.error("Please log in to submit your application.");
-      setLocation("/login");
-      return;
-    }
-
     try {
-      const loanTypeLabel = formData.loanType === "personal" ? "Personal Loan" : "Business Loan";
-      const categoryLabel = formData.loanCategory.replace("-", " ");
-      const loanType = `${loanTypeLabel} (${categoryLabel})`;
+      // Prepare the complete registration payload with all required fields
+      const completeUserData = {
+        ...userData,
+        pin: registrationPayload.pin,
+        loanProductId: registrationPayload.loanProductId,
+        institutionName: formData.institutionName || registrationPayload.institutionName,
+        loanAmount: formData.loanAmount,
+        repaymentMonths: formData.repaymentMonths,
+        phone: userData.phone || "" // Ensure phone is not empty
+      };
 
-      await createLoan({
-        type: loanType,
-        amount: formData.loanAmount,
-        tenure: formData.repaymentMonths,
-        purpose: formData.institutionName || undefined,
-        interestRate: calculatedTerms?.interestRate,
-        amountDue: calculatedTerms?.emi,
-        totalRepayment: calculatedTerms?.totalPayment
-      });
+      // Register user with loan application in a single request
+      if (!isAuthenticated) {
+        // Use the new registerWithLoanApplication method that handles both registration and loan application
+        await registerWithLoanApplication(completeUserData, {});
+        toast.success("Account created and loan application submitted successfully!");
+      } else {
+        // If already authenticated, just create the loan
+        const loanTypeLabel = formData.loanType === "personal" ? "Personal Loan" : "Business Loan";
+        const categoryLabel = formData.loanCategory.replace("-", " ");
+        const loanType = `${loanTypeLabel} (${categoryLabel})`;
+
+        const loanData = {
+          type: loanType,
+          amount: formData.loanAmount,
+          tenure: formData.repaymentMonths,
+          purpose: formData.institutionName || undefined,
+          interestRate: calculatedTerms?.interestRate,
+          amountDue: calculatedTerms?.emi,
+          totalRepayment: calculatedTerms?.totalPayment
+        };
+
+        await createLoan(loanData);
+      }
 
       setLocation("/kyc");
-    } catch (error) {
-      console.error("Loan application error:", error);
-      toast.error("Failed to submit loan application. Please try again.");
+    } catch (error: any) {
+      console.error("Application submission error:", error);
+      toast.error(error.message || "Failed to submit application. Please try again.");
     }
   };
 
@@ -183,129 +219,211 @@ export default function LoanApplication() {
 
       {/* Main Content */}
       <main className="flex-1 px-6 py-6 pb-24 overflow-y-auto">
-        {/* Step 1: Loan Terms */}
+        {/* Step 1: User Registration & Loan Terms */}
         {currentStep === 1 && (
           <div className="space-y-6 animate-in fade-in">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                Define Your Loan
+                Create Account & Define Loan
               </h2>
               <p className="text-gray-500">
-                Select loan type and amount
+                Register to get started and select your loan details
               </p>
             </div>
 
             <div className="space-y-5">
-              {/* Loan Type */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-900">
-                  Loan Type
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { value: "personal", label: "Personal" },
-                    { value: "business", label: "Business" }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        handleInputChange("loanType", option.value);
-                        handleInputChange("loanCategory", option.value === "personal" ? "civil-servant" : "collateral");
-                      }}
-                      className={`p-4 rounded-xl border-2 font-semibold transition-all ${
-                        formData.loanType === option.value
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+              {/* User Registration Fields */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900">Account Information</h3>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-1">
+                        First Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="First name"
+                        value={userData.firstName}
+                        onChange={(e) => setUserData({...userData, firstName: e.target.value})}
+                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-1">
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Last name"
+                        value={userData.lastName}
+                        onChange={(e) => setUserData({...userData, lastName: e.target.value})}
+                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="Enter your email"
+                      value={userData.email}
+                      onChange={(e) => setUserData({...userData, email: e.target.value})}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+260XXXXXXXXX"
+                      value={userData.phone}
+                      onChange={(e) => setUserData({...userData, phone: e.target.value})}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Create a password"
+                      value={userData.password}
+                      onChange={(e) => setUserData({...userData, password: e.target.value})}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Loan Category */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-900">
-                  {formData.loanType === "personal" ? "Employment Type" : "Collateral Type"}
-                </label>
-                <div className="relative">
-                  <select
-                    value={formData.loanCategory}
-                    onChange={(e) => handleInputChange("loanCategory", e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none appearance-none bg-white"
-                  >
-                    {formData.loanType === "personal" ? (
-                      <>
-                        <option value="civil-servant">Civil Servant (GRZ)</option>
-                        <option value="private">Private Institution</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="collateral">Vehicle/Property</option>
-                        <option value="farmer">Farmer Loan</option>
-                      </>
-                    )}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
+              <div className="border-t border-gray-200 pt-5">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Loan Details</h3>
 
-              {/* Institution Name (if Private) */}
-              {formData.loanType === "personal" && formData.loanCategory === "private" && (
+                {/* Loan Type */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-900">
-                    Institution Name
+                    Loan Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "personal", label: "Personal" },
+                      { value: "business", label: "Business" }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          handleInputChange("loanType", option.value);
+                          handleInputChange("loanCategory", option.value === "personal" ? "civil-servant" : "collateral");
+                        }}
+                        className={`p-4 rounded-xl border-2 font-semibold transition-all ${
+                          formData.loanType === option.value
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Loan Category */}
+                <div className="space-y-2 mt-4">
+                  <label className="block text-sm font-semibold text-gray-900">
+                    {formData.loanType === "personal" ? "Employment Type" : "Collateral Type"}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={formData.loanCategory}
+                      onChange={(e) => handleInputChange("loanCategory", e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none appearance-none bg-white"
+                    >
+                      {formData.loanType === "personal" ? (
+                        <>
+                          <option value="civil-servant">Civil Servant (GRZ)</option>
+                          <option value="private">Private Institution</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="collateral">Vehicle/Property</option>
+                          <option value="farmer">Farmer Loan</option>
+                        </>
+                      )}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Institution Name (if Private) */}
+                {formData.loanType === "personal" && formData.loanCategory === "private" && (
+                  <div className="space-y-2 mt-4">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Institution Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Zamtel, ZESCO"
+                      value={formData.institutionName || ""}
+                      onChange={(e) => handleInputChange("institutionName", e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Loan Amount */}
+                <div className="space-y-2 mt-4">
+                  <label className="block text-sm font-semibold text-gray-900">
+                    Loan Amount (ZMW)
                   </label>
                   <input
-                    type="text"
-                    placeholder="e.g., Zamtel, ZESCO"
-                    value={formData.institutionName || ""}
-                    onChange={(e) => handleInputChange("institutionName", e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                    type="number"
+                    placeholder="10,000"
+                    value={formData.loanAmount}
+                    onChange={(e) => handleInputChange("loanAmount", parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xl font-bold"
                   />
+                  <p className="text-xs text-gray-500">
+                    {formData.loanType === "personal" ? "K5,000 - K50,000" : "K10,000 - K200,000"}
+                  </p>
                 </div>
-              )}
 
-              {/* Loan Amount */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-900">
-                  Loan Amount (ZMW)
-                </label>
-                <input
-                  type="number"
-                  placeholder="10,000"
-                  value={formData.loanAmount}
-                  onChange={(e) => handleInputChange("loanAmount", parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xl font-bold"
-                />
-                <p className="text-xs text-gray-500">
-                  {formData.loanType === "personal" ? "K5,000 - K50,000" : "K10,000 - K200,000"}
-                </p>
-              </div>
-
-              {/* Repayment Duration */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-gray-900">
-                    Repayment Period
-                  </label>
-                  <span className="text-xl font-bold text-primary">
-                    {formData.repaymentMonths} months
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={formData.loanType === "personal" ? 6 : 12}
-                  max={formData.loanType === "personal" ? 36 : 60}
-                  value={formData.repaymentMonths}
-                  onChange={(e) => handleInputChange("repaymentMonths", parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>{formData.loanType === "personal" ? "6" : "12"} months</span>
-                  <span>{formData.loanType === "personal" ? "36" : "60"} months</span>
+                {/* Repayment Duration */}
+                <div className="space-y-3 mt-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-900">
+                      Repayment Period
+                    </label>
+                    <span className="text-xl font-bold text-primary">
+                      {formData.repaymentMonths} months
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={formData.loanType === "personal" ? 6 : 12}
+                    max={formData.loanType === "personal" ? 36 : 60}
+                    value={formData.repaymentMonths}
+                    onChange={(e) => handleInputChange("repaymentMonths", parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>{formData.loanType === "personal" ? "6" : "12"} months</span>
+                    <span>{formData.loanType === "personal" ? "36" : "60"} months</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -323,7 +441,8 @@ export default function LoanApplication() {
             {/* Next Button */}
             <Button
               onClick={handleNext}
-              className="w-full rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-14 text-base shadow-lg shadow-primary/30"
+              disabled={!userData.firstName || !userData.lastName || !userData.email || !userData.password || !userData.phone}
+              className="w-full rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-14 text-base shadow-lg shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Continue <ChevronRight className="w-5 h-5 ml-1" />
             </Button>
@@ -440,11 +559,11 @@ export default function LoanApplication() {
                 </label>
                 <input
                   type="password"
-                  placeholder="******"
-                  value={formData.pin}
-                  onChange={(e) => handleInputChange("pin", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="****"
+                  value={registrationPayload.pin}
+                  onChange={(e) => setRegistrationPayload({...registrationPayload, pin: e.target.value.replace(/\D/g, "").slice(0, 4)})}
                   className="w-full h-16 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-3xl tracking-[0.5em] font-bold"
-                  maxLength={6}
+                  maxLength={4}
                   required
                 />
                 {pinError && (

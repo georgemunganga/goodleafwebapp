@@ -1,113 +1,158 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Mail, Phone, Lock, Eye, EyeOff, Smartphone } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Mail, Phone, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ButtonLoader } from "@/components/ui/loading-spinner";
-import { FormField, FormFieldGroup } from "@/components/FormField";
-import { PINInput } from "@/components/PINInput";
 import { OTPVerificationModal } from "@/components/OTPVerificationModal";
 import { toast } from "sonner";
-import { authService } from "@/lib/api-service";
 import { useAuthContext } from "@/contexts/AuthContext";
 
 /**
- * Login Page
- * Design: Responsive desktop and mobile layouts with React Hook Form + Zod validation
- * - Desktop: Split layout with hero on left, form on right
- * - Mobile: Full-width centered form
- * - Email/Phone toggle
- * - PIN input with visibility toggle
- * - Real-time validation with Zod schemas
+ * Login Page - Using plain useState + Zod validation
+ * No React Hook Form - direct state management for reliability
  */
 
-// Validation schemas for different login methods
-const PhoneLoginSchema = z.object({
-  phoneNumber: z.string()
-    .regex(/^\d{9}$/, "Phone number must be 9 digits")
-    .min(1, "Phone number is required"),
-  countryCode: z.string(),
-  pin: z.string()
-    .length(4, "PIN must be exactly 4 digits")
-    .regex(/^\d{4}$/, "PIN must contain only digits"),
-});
+// Zod schemas for validation
+const PinSchema = z
+  .string()
+  .min(4, "PIN must be 4 digits")
+  .max(4, "PIN must be 4 digits")
+  .regex(/^\d{4}$/, "PIN must contain only digits");
 
-const EmailLoginSchema = z.object({
-  email: z.string()
-    .email("Invalid email address")
-    .min(1, "Email is required"),
-  pin: z.string()
-    .length(4, "PIN must be exactly 4 digits")
-    .regex(/^\d{4}$/, "PIN must contain only digits"),
-});
+const LoginSchema = z.discriminatedUnion("identifierType", [
+  z.object({
+    identifierType: z.literal("phone"),
+    countryCode: z.string().min(1, "Country code is required"),
+    phoneNumber: z
+      .string()
+      .min(1, "Phone number is required")
+      .regex(/^\d{9}$/, "Phone number must be 9 digits"),
+    pin: PinSchema,
+  }),
+  z.object({
+    identifierType: z.literal("email"),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email is required")
+      .email("Invalid email address"),
+    pin: PinSchema,
+  }),
+]);
 
-type PhoneLoginForm = z.infer<typeof PhoneLoginSchema>;
-type EmailLoginForm = z.infer<typeof EmailLoginSchema>;
+type FieldErrors = Record<string, string>;
+
+const getEmailFromQuery = () => {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("email")?.trim() || "";
+};
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const auth = useAuthContext();
-  const [identifierType, setIdentifierType] = useState<"email" | "phone">("phone");
+  const hasPrefilledEmailRef = useRef(false);
+
+  // Form state - simple useState
+  const [identifierType, setIdentifierType] = useState<"phone" | "email">("phone");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [countryCode, setCountryCode] = useState("+260");
+  const [email, setEmail] = useState("");
+  const [pin, setPin] = useState("");
+
+  // UI state
   const [showPin, setShowPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
   const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
 
-  // Phone login form
-  const phoneForm = useForm<PhoneLoginForm>({
-    resolver: zodResolver(PhoneLoginSchema),
-    mode: "onBlur", // Validate on blur for better UX
-    defaultValues: {
-      phoneNumber: "",
-      countryCode: "+260",
-      pin: "",
-    },
-  });
+  // Prefill email from query params
+  useEffect(() => {
+    if (hasPrefilledEmailRef.current) return;
+    const emailFromQuery = getEmailFromQuery();
+    if (emailFromQuery) {
+      hasPrefilledEmailRef.current = true;
+      setIdentifierType("email");
+      setEmail(emailFromQuery);
+    }
+  }, []);
 
-  // Email login form
-  const emailForm = useForm<EmailLoginForm>({
-    resolver: zodResolver(EmailLoginSchema),
-    mode: "onBlur",
-    defaultValues: {
-      email: "",
-      pin: "",
-    },
-  });
+  // Open OTP modal when otpId is set
+  useEffect(() => {
+    if (auth.otpId && !otpModalOpen) {
+      setOtpModalOpen(true);
+    }
+  }, [auth.otpId, otpModalOpen]);
 
-  const currentForm = identifierType === "phone" ? phoneForm : emailForm;
-  const { register: phoneRegister } = phoneForm;
-  const { register: emailRegister } = emailForm;
+  // Clear field error when user types
+  const clearError = useCallback((field: string) => {
+    setErrors(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
 
-  const handleLogin = async (data: PhoneLoginForm | EmailLoginForm) => {
+  // Validate form and return errors
+  const validateForm = (): FieldErrors => {
+    const result = LoginSchema.safeParse({
+      identifierType,
+      phoneNumber,
+      countryCode,
+      email,
+      pin,
+    });
+
+    if (result.success) {
+      return {};
+    }
+
+    const newErrors: FieldErrors = {};
+    result.error.issues.forEach((issue) => {
+      const field = issue.path[0];
+      if (typeof field === "string") {
+        newErrors[field] = issue.message;
+      }
+    });
+
+    return newErrors;
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     setIsLoading(true);
+    setErrors({});
+
     try {
-      // Prepare login payload based on identifier type
       const loginPayload = identifierType === "phone"
-        ? {
-            phoneNumber: `${(data as PhoneLoginForm).countryCode}${(data as PhoneLoginForm).phoneNumber}`,
-            pin: data.pin,
-          }
-        : {
-            email: (data as EmailLoginForm).email,
-            pin: data.pin,
-          };
+        ? { phone: `${countryCode}${phoneNumber}`, pin }
+        : { email, pin };
 
-      // Call login API
-      const response = await authService.login(loginPayload);
+      const response = await auth.login(loginPayload);
 
-      if (response.success) {
-        if (enableTwoFactor) {
-          const email = identifierType === "email" ? (data as EmailLoginForm).email : undefined;
-          const phone = identifierType === "phone" ? `${(data as PhoneLoginForm).countryCode}${(data as PhoneLoginForm).phoneNumber}` : undefined;
-          await auth.requestOTP(email, phone);
-          setOtpModalOpen(true);
-          toast.success("OTP sent! Please check your email/SMS.");
-        } else {
-          toast.success("Login successful!");
-          setLocation("/dashboard");
-        }
+      if (!response.success) {
+        toast.error((response as any).message || "Login failed");
+        return;
+      }
+
+      if ("otpId" in response && response.otpId) {
+        setOtpModalOpen(true);
+        toast.success(response.message || "OTP sent! Please check your email/SMS.");
+        return;
+      }
+
+      if ("token" in response && response.token) {
+        toast.success("Login successful!");
+        setLocation("/dashboard");
       } else {
         toast.error((response as any).message || "Login failed");
       }
@@ -119,17 +164,22 @@ export default function Login() {
     }
   };
 
+  // Switch identifier type
+  const switchIdentifierType = (type: "phone" | "email") => {
+    setIdentifierType(type);
+    setErrors({});
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Desktop Layout - Split screen */}
-      <div className="hidden lg:flex h-screen">
-        {/* Left Side - Hero/Brand Section */}
-        <div className="w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex flex-col items-center justify-center px-12 py-12 overflow-hidden flex-shrink-0">
+      <div className="lg:flex h-screen">
+        {/* Left Side - Hero/Brand Section (Desktop only) */}
+        <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#2e7146] to-[#1d4a2f] flex-col items-center justify-center px-12 py-12 overflow-hidden flex-shrink-0">
           <div className="max-w-md text-center">
             <div className="mb-12">
-              <img 
-                src="/images/logo-white.svg" 
-                alt="Goodleaf" 
+              <img
+                src="/images/logo-white.svg"
+                alt="Goodleaf"
                 className="h-16 mx-auto mb-8"
               />
             </div>
@@ -144,7 +194,7 @@ export default function Login() {
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
                   <span className="text-sm font-semibold">✓</span>
                 </div>
-                <p>Quick approval process</p>
+                <p>Quick approvhal process</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
@@ -162,24 +212,34 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Right Side - Login Form */}
-        <div className="w-1/2 flex flex-col items-center justify-start px-12 py-12 overflow-y-auto overflow-x-hidden flex-shrink-0">
-          <div className="w-full max-w-md">
-            <div className="mb-12">
+        {/* Right Side - Form Container */}
+        <div className="w-full lg:w-1/2 flex flex-col items-center justify-center px-6 lg:px-12 py-12 overflow-y-auto">
+          <div className="w-full max-w-sm lg:max-w-md">
+            {/* Mobile Logo */}
+            <div className="lg:hidden mb-8 text-center">
+              <img
+                src="/images/logo-dark.svg"
+                alt="Goodleaf"
+                className="h-12 mx-auto mb-4"
+              />
+              <h1 className="text-2xl font-bold text-gray-900">Goodleaf Loans</h1>
+              <p className="text-gray-600 text-sm mt-2">Fast, reliable loans</p>
+            </div>
+
+            {/* Desktop Header */}
+            <div className="hidden lg:block mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
               <p className="text-gray-600">Sign in to your account to continue</p>
             </div>
 
-            <form onSubmit={currentForm.handleSubmit(handleLogin)} className="space-y-6">
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Identifier Type Toggle */}
-              <div className="flex gap-3 p-1 bg-gray-100 rounded-xl">
+              <div className="flex gap-2 lg:gap-3 p-1 bg-gray-100 rounded-lg lg:rounded-xl">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIdentifierType("phone");
-                    phoneForm.clearErrors();
-                  }}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium text-sm transition-all ${
+                  onClick={() => switchIdentifierType("phone")}
+                  className={`flex-1 py-2 lg:py-3 px-3 lg:px-4 rounded-lg font-medium text-sm transition-all ${
                     identifierType === "phone"
                       ? "bg-white text-gray-900 shadow-sm"
                       : "text-gray-500 hover:text-gray-700"
@@ -190,11 +250,8 @@ export default function Login() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIdentifierType("email");
-                    emailForm.clearErrors();
-                  }}
-                  className={`flex-1 py-3 px-4 rounded-lg font-medium text-sm transition-all ${
+                  onClick={() => switchIdentifierType("email")}
+                  className={`flex-1 py-2 lg:py-3 px-3 lg:px-4 rounded-lg font-medium text-sm transition-all ${
                     identifierType === "email"
                       ? "bg-white text-gray-900 shadow-sm"
                       : "text-gray-500 hover:text-gray-700"
@@ -207,68 +264,114 @@ export default function Login() {
 
               {/* Phone Number Input */}
               {identifierType === "phone" && (
-                <FormFieldGroup layout="column">
-                  <FormField
-                    label="Mobile Number"
-                    error={phoneForm.formState.errors.phoneNumber}
-                    required
-                  >
-                    <div className="flex gap-2">
-                      <select
-                        {...phoneRegister("countryCode")}
-                        className="px-3 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white"
-                      >
-                        <option value="+260">+260</option>
-                        <option value="+27">+27</option>
-                        <option value="+263">+263</option>
-                        <option value="+265">+265</option>
-                      </select>
-                      <input
-                        type="tel"
-                        placeholder="123456789"
-                        {...phoneRegister("phoneNumber")}
-                        className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                      />
-                    </div>
-                  </FormField>
-                </FormFieldGroup>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => {
+                        setCountryCode(e.target.value);
+                        clearError("countryCode");
+                      }}
+                      className="px-3 py-3 border border-gray-300 rounded-lg focus:border-[#2e7146] focus:ring-2 focus:ring-[#2e7146]/20 outline-none bg-white text-sm lg:text-base"
+                    >
+                      <option value="+260">+260</option>
+                      <option value="+27">+27</option>
+                      <option value="+263">+263</option>
+                      <option value="+265">+265</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        // Only allow digits
+                        const value = e.target.value.replace(/\D/g, "");
+                        setPhoneNumber(value);
+                        clearError("phoneNumber");
+                      }}
+                      placeholder="123456789"
+                      inputMode="numeric"
+                      maxLength={9}
+                      autoComplete="tel"
+                      className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm lg:text-base ${
+                        errors.phoneNumber
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                          : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
+                      }`}
+                    />
+                  </div>
+                  {errors.phoneNumber && (
+                    <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>
+                  )}
+                </div>
               )}
 
               {/* Email Input */}
               {identifierType === "email" && (
-                <FormField
-                  label="Email Address"
-                  error={emailForm.formState.errors.email}
-                  required
-                >
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearError("email");
+                    }}
                     placeholder="john@example.com"
-                    {...emailRegister("email")}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                    autoComplete="email"
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm lg:text-base ${
+                      errors.email
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                        : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
+                    }`}
                   />
-                </FormField>
+                  {errors.email && (
+                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                  )}
+                </div>
               )}
 
               {/* PIN Input */}
-              <FormField
-                label="PIN"
-                error={currentForm.formState.errors.pin}
-                required
-              >
-                <PINInput
-                  value={identifierType === "phone" ? phoneForm.watch("pin") : emailForm.watch("pin")}
-                  onChange={(value) => {
-                    if (identifierType === "phone") {
-                      phoneForm.setValue("pin", value);
-                    } else {
-                      emailForm.setValue("pin", value);
-                    }
-                  }}
-                  type="pin"
-                  error={!!currentForm.formState.errors.pin}
-                />
-              </FormField>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  PIN <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPin ? "text" : "password"}
+                    value={pin}
+                    onChange={(e) => {
+                      // Only allow digits, max 4
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPin(value);
+                      clearError("pin");
+                    }}
+                    placeholder="••••"
+                    maxLength={4}
+                    inputMode="numeric"
+                    autoComplete="current-password"
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none pr-10 text-sm lg:text-base ${
+                      errors.pin
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                        : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.pin && (
+                  <p className="text-red-500 text-xs mt-1">{errors.pin}</p>
+                )}
+              </div>
 
               {/* Submit Button */}
               <Button
@@ -278,21 +381,6 @@ export default function Login() {
               >
                 {isLoading ? <ButtonLoader isLoading={true}>Signing In...</ButtonLoader> : "Sign In"}
               </Button>
-
-              {/* 2FA Toggle */}
-              <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
-                <input
-                  type="checkbox"
-                  id="enable2fa"
-                  checked={enableTwoFactor}
-                  onChange={(e) => setEnableTwoFactor(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-[#2e7146] cursor-pointer"
-                />
-                <label htmlFor="enable2fa" className="flex-1 text-sm text-gray-700 cursor-pointer">
-                  <span className="font-medium">Enable Two-Factor Authentication</span>
-                  <p className="text-xs text-gray-600 mt-1">Receive a code via email or SMS for added security</p>
-                </label>
-              </div>
 
               {/* Links */}
               <div className="text-center space-y-3">
@@ -318,144 +406,6 @@ export default function Login() {
               </Button>
             </form>
           </div>
-        </div>
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="lg:hidden min-h-screen flex flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
-            <img 
-              src="/images/logo-dark.svg" 
-              alt="Goodleaf" 
-              className="h-12 mx-auto mb-4"
-            />
-            <h1 className="text-2xl font-bold text-gray-900">Goodleaf Loans</h1>
-            <p className="text-gray-600 text-sm mt-2">Fast, reliable loans</p>
-          </div>
-
-          <form onSubmit={currentForm.handleSubmit(handleLogin)} className="space-y-6">
-            {/* Same form fields as desktop */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setIdentifierType("phone")}
-                className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-all ${
-                  identifierType === "phone"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                <Phone className="w-4 h-4 inline mr-1" />
-                Phone
-              </button>
-              <button
-                type="button"
-                onClick={() => setIdentifierType("email")}
-                className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-all ${
-                  identifierType === "email"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                <Mail className="w-4 h-4 inline mr-1" />
-                Email
-              </button>
-            </div>
-
-            {identifierType === "phone" && (
-              <FormField
-                label="Mobile Number"
-                error={phoneForm.formState.errors.phoneNumber}
-                required
-              >
-                <div className="flex gap-2">
-                  <select
-                    {...phoneRegister("countryCode")}
-                    className="px-3 py-3 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="+260">+260</option>
-                    <option value="+27">+27</option>
-                    <option value="+263">+263</option>
-                    <option value="+265">+265</option>
-                  </select>
-                  <input
-                    type="tel"
-                    placeholder="123456789"
-                    {...phoneRegister("phoneNumber")}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-sm"
-                  />
-                </div>
-              </FormField>
-            )}
-
-            {identifierType === "email" && (
-              <FormField
-                label="Email Address"
-                error={emailForm.formState.errors.email}
-                required
-              >
-                <input
-                  type="email"
-                  placeholder="john@example.com"
-                  {...emailRegister("email")}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm"
-                />
-              </FormField>
-            )}
-
-            <FormField
-              label="PIN"
-              error={currentForm.formState.errors.pin}
-              required
-            >
-              <div className="relative">
-                <input
-                  type={showPin ? "text" : "password"}
-                  placeholder="••••"
-                  maxLength={4}
-                  {...(identifierType === "phone" ? phoneRegister("pin") : emailRegister("pin"))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                >
-                  {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </FormField>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-[#2e7146] text-white py-3 rounded-lg font-semibold"
-            >
-              {isLoading ? <ButtonLoader isLoading={true}>Signing In...</ButtonLoader> : "Sign In"}
-            </Button>
-
-            <div className="text-center space-y-2 text-sm">
-              <a href="/forgot-pin" className="block text-[#2e7146] hover:underline">
-                Forgot PIN?
-              </a>
-              <p className="text-gray-600">
-                New user?{" "}
-                <a href="/apply" className="text-[#2e7146] font-semibold hover:underline">
-                  Register here
-                </a>
-              </p>
-            </div>
-
-            <Button
-              type="button"
-              onClick={() => setLocation("/apply")}
-              variant="outline"
-              className="w-full border-[#2e7146] text-[#2e7146]"
-            >
-              Apply for a Loan
-            </Button>
-          </form>
         </div>
       </div>
 

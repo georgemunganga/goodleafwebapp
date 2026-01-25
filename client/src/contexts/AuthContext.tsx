@@ -21,7 +21,7 @@ interface AuthContextType {
   loginEmail?: string;
   loginPhone?: string;
   // Methods
-  login: (request: Types.LoginRequest) => Promise<Types.LoginResponse>;
+  login: (request: Types.LoginRequest) => Promise<Types.LoginOTPResponse | Types.LoginResponse>;
   logout: () => void;
   clearError: () => void;
   refreshToken: () => Promise<boolean>;
@@ -29,6 +29,7 @@ interface AuthContextType {
   requestOTP: (email?: string, phone?: string) => Promise<{ otpId: string }>;  
   verifyOTP: (otp: string) => Promise<boolean>;
   cancelTwoFactor: () => void;
+  seedOtp: (otpId: string, email?: string, phone?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,19 +92,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
 
         const response = await authService.login(request);
-        
-        // Save tokens and user data using session manager
-        sessionManager.saveTokens(response.token, response.refreshToken);
-        sessionManager.saveUser(response.user);
 
-        setToken(response.token);
-        setUser(response.user);
+        if ('token' in response && response.token) {
+          // Save tokens and user data using session manager
+          sessionManager.saveTokens(response.token, response.refreshToken);
+          sessionManager.saveUser(response.user);
 
-        auditLogger.logAuth(
-          AuditEventType.LOGIN_SUCCESS,
-          request.phone || request.email || '',
-          true
-        );
+          setToken(response.token);
+          setUser(response.user);
+
+          auditLogger.logAuth(
+            AuditEventType.LOGIN_SUCCESS,
+            request.phone || request.email || '',
+            true
+          );
+        } else if ('otpId' in response) {
+          setOtpId(response.otpId);
+          setLoginEmail(request.email);
+          setLoginPhone(request.phone);
+          setTwoFactorRequired(true);
+        }
 
         return response;
       } catch (err: any) {
@@ -202,6 +210,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoginPhone(undefined);
   }, []);
 
+  const seedOtp = useCallback((seededOtpId: string, email?: string, phone?: string) => {
+    setOtpId(seededOtpId);
+    setLoginEmail(email);
+    setLoginPhone(phone);
+    setTwoFactorRequired(true);
+  }, []);
+
   const value: AuthContextType = {
     user,
     token,
@@ -220,6 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     requestOTP,
     verifyOTP,
     cancelTwoFactor,
+    seedOtp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

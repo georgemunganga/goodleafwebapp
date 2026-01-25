@@ -5,6 +5,9 @@ import { useLocation } from "wouter";
 import { Upload, ChevronLeft, ChevronRight, CheckCircle2, FileText, Check } from "lucide-react";
 import { FormRecoveryModal } from "@/components/FormRecoveryModal";
 import { useFormPersistence } from "@/hooks/useFormPersistence";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { kycService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 
 type KYCStep = 1 | 2;
 
@@ -16,8 +19,11 @@ type KYCStep = 1 | 2;
  */
 export default function KYCWorkflow() {
   const [, setLocation] = useLocation();
+  const { user } = useAuthContext();
   const [currentStep, setCurrentStep] = useState<KYCStep>(1);
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
 
@@ -43,6 +49,12 @@ export default function KYCWorkflow() {
     "3 Months Payslip",
     "Proof of Address"
   ];
+
+  const documentTypeMap: Record<string, Types.DocumentUploadRequest["documentType"]> = {
+    "National ID or Passport": "id",
+    "3 Months Payslip": "proof_of_income",
+    "Proof of Address": "utility_bill"
+  };
 
   // Auto-save on mount
   useEffect(() => {
@@ -70,9 +82,33 @@ export default function KYCWorkflow() {
     }));
   };
 
-  const handleDocumentUpload = (docName: string) => {
-    if (!uploadedDocs.includes(docName)) {
-      setUploadedDocs([...uploadedDocs, docName]);
+  const handleDocumentUpload = async (docName: string, file?: File) => {
+    if (!file || uploadingDoc) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadErrors((prev) => ({ ...prev, [docName]: "File must be 10MB or smaller." }));
+      return;
+    }
+
+    setUploadingDoc(docName);
+    setUploadErrors((prev) => ({ ...prev, [docName]: "" }));
+
+    try {
+      const documentType = documentTypeMap[docName] || "id";
+      await kycService.uploadDocument({
+        userId: user?.id || "",
+        documentType,
+        file,
+      });
+
+      if (!uploadedDocs.includes(docName)) {
+        setUploadedDocs((prev) => [...prev, docName]);
+      }
+    } catch (err) {
+      console.error("Document upload failed:", err);
+      setUploadErrors((prev) => ({ ...prev, [docName]: "Upload failed. Please try again." }));
+    } finally {
+      setUploadingDoc(null);
     }
   };
 
@@ -314,6 +350,8 @@ export default function KYCWorkflow() {
             <div className="space-y-3">
               {requiredDocuments.map((doc) => {
                 const isUploaded = uploadedDocs.includes(doc);
+                const isUploading = uploadingDoc === doc;
+                const errorMessage = uploadErrors[doc];
                 return (
                   <label
                     key={doc}
@@ -336,8 +374,11 @@ export default function KYCWorkflow() {
                           {doc}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {isUploaded ? "Uploaded" : "Tap to upload"}
+                          {isUploading ? "Uploading..." : isUploaded ? "Uploaded" : "Tap to upload"}
                         </p>
+                        {errorMessage && (
+                          <p className="text-xs text-red-600 mt-1">{errorMessage}</p>
+                        )}
                       </div>
                       {!isUploaded && (
                         <Upload className="w-5 h-5 text-slate-400" />
@@ -345,9 +386,10 @@ export default function KYCWorkflow() {
                     </div>
                     <input
                       type="file"
-                      onChange={() => handleDocumentUpload(doc)}
+                      onChange={(e) => handleDocumentUpload(doc, e.target.files?.[0])}
                       accept="image/*,.pdf"
                       className="hidden"
+                      disabled={isUploading}
                     />
                   </label>
                 );

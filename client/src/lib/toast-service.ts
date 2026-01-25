@@ -65,35 +65,14 @@ export const getErrorMessage = (error: any): string => {
     return error;
   }
 
-  if (error?.response?.status === 401) {
-    return 'Session expired. Please log in again.';
-  }
+  const status = error?.status ?? error?.response?.status;
+  const message =
+    error?.message ||
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.response?.statusText;
 
-  if (error?.response?.status === 403) {
-    return 'You do not have permission to perform this action.';
-  }
-
-  if (error?.response?.status === 404) {
-    return 'The requested resource was not found.';
-  }
-
-  if (error?.response?.status === 409) {
-    return 'This resource already exists or there is a conflict.';
-  }
-
-  if (error?.response?.status === 422) {
-    return 'Please check your input and try again.';
-  }
-
-  if (error?.response?.status === 429) {
-    return 'Too many requests. Please try again later.';
-  }
-
-  if (error?.response?.status >= 500) {
-    return 'Server error. Please try again later.';
-  }
-
-  if (error?.message === 'Network Error') {
+  if (error?.code === 'NETWORK_ERROR' || error?.message === 'Network Error' || status === 0) {
     return 'Network error. Please check your connection.';
   }
 
@@ -101,5 +80,37 @@ export const getErrorMessage = (error: any): string => {
     return 'Request timeout. Please try again.';
   }
 
-  return error?.message || 'An error occurred. Please try again.';
+  if (message && !['Request failed', 'An error occurred'].includes(message)) {
+    return message;
+  }
+
+  if (status === 401) {
+    return 'Session expired. Please log in again.';
+  }
+
+  if (status === 403) {
+    return 'You do not have permission to perform this action.';
+  }
+
+  if (status === 404) {
+    return 'The requested resource was not found.';
+  }
+
+  if (status === 409) {
+    return 'This resource already exists or there is a conflict.';
+  }
+
+  if (status === 422) {
+    return 'Please check your input and try again.';
+  }
+
+  if (status === 429) {
+    return 'Too many requests. Please try again later.';
+  }
+
+  if (typeof status === 'number' && status >= 500) {
+    return 'Server error. Please try again later.';
+  }
+
+  return message || 'An error occurred. Please try again.';
 };

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard, AlertCircle, XCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar } from "lucide-react";
+import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard, AlertCircle, XCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar, ShieldCheck, Circle, LifeBuoy, User } from "lucide-react";
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
 import { loanService } from "@/lib/api-service";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
@@ -19,14 +19,15 @@ import * as Types from "@/lib/api-types";
  */
 
 // Loan status types for display
-type DisplayLoanStatus = 
-  | "active" 
-  | "pending_approval" 
-  | "declined" 
-  | "pending_kyc" 
-  | "kyc_rejected" 
-  | "approved_not_disbursed" 
-  | "overdue" 
+type DisplayLoanStatus =
+  | "active"
+  | "submitted"
+  | "pending_approval"
+  | "declined"
+  | "pending_kyc"
+  | "kyc_rejected"
+  | "approved_not_disbursed"
+  | "overdue"
   | "completed";
 
 interface DisplayLoan extends Types.LoanDetails {
@@ -85,6 +86,8 @@ export default function Dashboard() {
   // Map API loan status to display status
   function mapLoanStatus(apiStatus: Types.LoanDetails['status']): DisplayLoanStatus {
     switch (apiStatus) {
+      case 'submitted':
+        return 'submitted';
       case 'active':
         return 'active';
       case 'completed':
@@ -96,9 +99,21 @@ export default function Dashboard() {
       case 'defaulted':
         return 'overdue';
       default:
-        return 'active';
+        return 'pending_approval';
     }
   }
+
+  const parseDate = (value?: string | null): Date | null => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatDate = (value?: string | null, options?: Intl.DateTimeFormatOptions): string => {
+    const date = parseDate(value);
+    if (!date) return "-";
+    return date.toLocaleDateString("en-US", options);
+  };
 
   if (isLoading) {
     return <PageSkeletonLoader />;
@@ -110,13 +125,65 @@ export default function Dashboard() {
 
   const activeLoan = loans.find(loan => loan.displayStatus === "active");
   const overdueLoan = loans.find(loan => loan.displayStatus === "overdue");
+  const inProgressLoan = loans
+    .filter((loan) => loan.displayStatus === "submitted" || loan.displayStatus === "pending_approval")
+    .sort((a, b) => {
+      const timeA = parseDate(a.createdAt)?.getTime() ?? 0;
+      const timeB = parseDate(b.createdAt)?.getTime() ?? 0;
+      return timeB - timeA;
+    })[0];
+  const hasEstablishedLoan = loans.some(
+    (loan) => loan.displayStatus === "active" || loan.displayStatus === "overdue" || loan.displayStatus === "completed"
+  );
+  const isSubmittedOnlyUser = Boolean(inProgressLoan) && !hasEstablishedLoan;
+  const totalOutstanding = loans
+    .filter((loan) => loan.displayStatus === "active")
+    .reduce((sum, loan) => sum + (loan.amountRemaining || 0), 0);
+  const activeProgressWidth = activeLoan
+    ? ((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100
+    : 0;
+  const activeProgressPercent = activeLoan
+    ? Math.round(((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100)
+    : 0;
+  const applicationStage = inProgressLoan?.displayStatus === "pending_approval" ? "review" : "kyc";
+  const applicationSteps = inProgressLoan
+    ? [
+        {
+          key: "submitted",
+          label: "Application Submitted",
+          description: "Application received",
+          state: "completed" as const,
+        },
+        {
+          key: "kyc",
+          label: "Complete KYC",
+          description: "Verify your identity and documents",
+          state: applicationStage === "kyc" ? ("current" as const) : ("completed" as const),
+        },
+        {
+          key: "review",
+          label: "Review",
+          description: "We assess your application and affordability",
+          state: applicationStage === "review" ? ("current" as const) : ("pending" as const),
+        },
+        {
+          key: "decision",
+          label: "Decision",
+          description: "Approval and disbursement",
+          state: "pending" as const,
+        },
+      ]
+    : [];
 
   // Generate recommendations based on real loan data
   const generateRecommendations = (): Recommendation[] => {
     const recommendations: Recommendation[] = [];
 
-    // Check if user has no active loans
-    if (!activeLoan && loans.filter(l => l.displayStatus !== "declined" && l.displayStatus !== "pending_approval").length === 0) {
+    // Check if user has no active or in-progress applications
+    const inProgressStatuses: DisplayLoanStatus[] = ["submitted", "pending_approval"];
+    const hasInProgressLoans = loans.some((loan) => inProgressStatuses.includes(loan.displayStatus));
+    const hasEstablishedLoans = hasEstablishedLoan;
+    if (!activeLoan && !hasInProgressLoans && !hasEstablishedLoans) {
       recommendations.push({
         id: "apply-first-loan",
         title: "Ready for Your First Loan?",
@@ -130,17 +197,26 @@ export default function Dashboard() {
     }
 
     // Check if user has pending applications
-    const pendingLoan = loans.find(l => l.displayStatus === "pending_approval");
+    const pendingLoan = loans.find(
+      (loan) => loan.displayStatus === "submitted" || loan.displayStatus === "pending_approval"
+    );
     if (pendingLoan) {
+      const isSubmitted = pendingLoan.displayStatus === "submitted";
+      const pendingCategory = pendingLoan.loanCategory || "loan";
+      const pendingTitle = isSubmitted ? "Complete Your Verification" : "Application Under Review";
+      const pendingDescription =
+        isSubmitted
+          ? `Your ${pendingLoan.loanId} application is submitted. Complete KYC to continue.`
+          : `Your ${pendingCategory} application is being processed`;
       recommendations.push({
-        id: "pending-application",
-        title: "Application Under Review",
-        description: `Your ${pendingLoan.loanCategory} application is being processed`,
-        icon: Clock,
-        action: "View Status",
-        actionPath: "/loans",
-        color: "from-blue-50 to-cyan-50",
-        priority: "medium"
+        id: isSubmitted ? "complete-kyc" : "pending-application",
+        title: pendingTitle,
+        description: pendingDescription,
+        icon: isSubmitted ? ShieldCheck : Clock,
+        action: isSubmitted ? "Complete KYC" : "View Status",
+        actionPath: isSubmitted ? "/kyc" : "/loans",
+        color: isSubmitted ? "from-amber-50 to-yellow-50" : "from-blue-50 to-cyan-50",
+        priority: isSubmitted ? "high" : "medium"
       });
     }
 
@@ -192,18 +268,21 @@ export default function Dashboard() {
 
     // Check if user has active loan approaching due date
     if (activeLoan && activeLoan.nextPaymentDate) {
-      const daysUntilDue = Math.ceil((new Date(activeLoan.nextPaymentDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-      if (daysUntilDue <= 7 && daysUntilDue > 0) {
-        recommendations.push({
-          id: "upcoming-payment",
-          title: "Upcoming Payment Reminder",
-          description: `Payment of K${activeLoan.monthlyPayment?.toFixed(2)} due in ${daysUntilDue} days`,
-          icon: Calendar,
-          action: "Schedule Payment",
-          actionPath: "/repayment",
-          color: "from-amber-50 to-yellow-50",
-          priority: "medium"
-        });
+      const nextPaymentDate = parseDate(activeLoan.nextPaymentDate);
+      if (nextPaymentDate) {
+        const daysUntilDue = Math.ceil((nextPaymentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntilDue <= 7 && daysUntilDue > 0) {
+          recommendations.push({
+            id: "upcoming-payment",
+            title: "Upcoming Payment Reminder",
+            description: `Payment of K${activeLoan.monthlyPayment?.toFixed(2)} due in ${daysUntilDue} days`,
+            icon: Calendar,
+            action: "Schedule Payment",
+            actionPath: "/repayment",
+            color: "from-amber-50 to-yellow-50",
+            priority: "medium"
+          });
+        }
       }
     }
 
@@ -228,250 +307,79 @@ export default function Dashboard() {
   };
 
   const recommendations = generateRecommendations();
+  const visibleRecommendations = isSubmittedOnlyUser
+    ? recommendations.filter((rec) => rec.id !== "complete-kyc")
+    : recommendations;
 
-  // Render loan status card based on status type
-  const renderLoanCard = (loan: DisplayLoan) => {
-    switch (loan.displayStatus) {
-      case "active":
-        return (
-          <button
-            key={loan.id}
-            onClick={() => setLocation(`/loans/${loan.id}`)}
-            className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
-                <p className="text-sm text-gray-500">{loan.loanId}</p>
-              </div>
-              <span className="px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-full">
-                Active
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-primary/5 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
-                <p className="font-bold text-primary text-base">K{loan.amountRemaining?.toLocaleString()}</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Next Due</p>
-                <p className="font-bold text-gray-900 text-base">{new Date(loan.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary rounded-full"
-                  style={{ width: `${((loan.amountPaid || 0) / (loan.loanAmount || 1)) * 100}%` }}
-                ></div>
-              </div>
-              <span className="text-sm text-gray-500 font-semibold">{Math.round(((loan.amountPaid || 0) / (loan.loanAmount || 1)) * 100)}% paid</span>
-            </div>
-          </button>
-        );
-
-      case "pending_approval":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-blue-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
-                <p className="text-sm text-gray-500">{loan.loanId}</p>
-              </div>
-              <span className="px-4 py-2 bg-blue-100 text-blue-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Pending
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
-                <p className="font-bold text-blue-700 text-base">{new Date(loan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 rounded-xl p-4 mb-4">
-              <p className="text-sm text-blue-800">
-                Your application is under review. We'll notify you once a decision is made.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setLocation("/loans")}
-              variant="outline"
-              className="w-full rounded-xl border-blue-300 text-blue-700 hover:bg-blue-50"
-            >
-              View Application Status
-            </Button>
-          </div>
-        );
-
-      case "declined":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
-                <p className="text-sm text-gray-500">{loan.loanId}</p>
-              </div>
-              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                Declined
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-red-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Applied On</p>
-                <p className="font-bold text-red-700 text-base">{new Date(loan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-              </div>
-            </div>
-
-            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-              <p className="text-sm font-semibold text-red-900 mb-2">Application Declined</p>
-              <p className="text-sm text-red-800">
-                Your application did not meet the current requirements. Please contact support for more details.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                onClick={() => setLocation("/apply")}
-                className="rounded-xl bg-primary hover:bg-[#256339]"
-              >
-                Reapply
-              </Button>
-              <Button
-                onClick={() => setLocation("/help")}
-                variant="outline"
-                className="rounded-xl"
-              >
-                Get Help
-              </Button>
-            </div>
-          </div>
-        );
-
-      case "overdue":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-red-100 p-4 text-left"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
-                <p className="text-sm text-gray-500">{loan.loanId}</p>
-              </div>
-              <span className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                Overdue
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-red-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Outstanding</p>
-                <p className="font-bold text-red-700 text-base">K{loan.amountRemaining?.toLocaleString()}</p>
-              </div>
-              <div className="bg-red-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Status</p>
-                <p className="font-bold text-red-700 text-base">Overdue</p>
-              </div>
-            </div>
-
-            <div className="bg-red-50 rounded-xl p-4 mb-4 border border-red-200">
-              <p className="text-sm text-red-800">
-                Your payment is overdue. Penalties may apply. Please pay immediately.
-              </p>
-            </div>
-
-            <Button
-              onClick={() => setLocation("/repayment")}
-              className="w-full rounded-xl bg-red-600 hover:bg-red-700 text-white"
-            >
-              Pay Now
-              <ArrowUpRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
-        );
-
-      case "completed":
-        return (
-          <div
-            key={loan.id}
-            className="w-full bg-white rounded-2xl shadow-sm border border-gray-200 p-4 text-left opacity-75"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">{loan.loanType}</h3>
-                <p className="text-sm text-gray-500">{loan.loanId}</p>
-              </div>
-              <span className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-full flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Completed
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Loan Amount</p>
-                <p className="font-bold text-gray-900 text-base">K{loan.loanAmount?.toLocaleString()}</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Completed On</p>
-                <p className="font-bold text-gray-700 text-base">{new Date(loan.maturityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gray-400 rounded-full"
-                  style={{ width: "100%" }}
-                ></div>
-              </div>
-              <span className="text-sm text-gray-500 font-semibold">100% paid</span>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  const loanStatusConfig: Record<DisplayLoanStatus, { label: string; badgeClass: string }> = {
+    active: { label: "Active", badgeClass: "bg-green-100 text-green-700" },
+    submitted: { label: "Submitted", badgeClass: "bg-amber-100 text-amber-800" },
+    pending_approval: { label: "Pending", badgeClass: "bg-blue-100 text-blue-700" },
+    declined: { label: "Declined", badgeClass: "bg-red-100 text-red-700" },
+    pending_kyc: { label: "Pending KYC", badgeClass: "bg-amber-100 text-amber-800" },
+    kyc_rejected: { label: "KYC Rejected", badgeClass: "bg-red-100 text-red-700" },
+    approved_not_disbursed: { label: "Approved", badgeClass: "bg-emerald-100 text-emerald-700" },
+    overdue: { label: "Overdue", badgeClass: "bg-red-100 text-red-700" },
+    completed: { label: "Completed", badgeClass: "bg-gray-100 text-gray-700" },
   };
 
-  const quickActions = [
+  // Render loan list item
+  const renderLoanCard = (loan: DisplayLoan) => {
+    const loanTitle = loan.loanType || loan.loanCategory || "Loan Application";
+    const statusMeta = loanStatusConfig[loan.displayStatus] ?? loanStatusConfig.pending_approval;
+    const isActive = loan.displayStatus === "active" || loan.displayStatus === "overdue";
+    const dateLabel = isActive ? "Next Due" : "Applied";
+    const dateValue = isActive ? loan.nextPaymentDate : loan.createdAt;
+
+    return (
+      <button
+        key={loan.id}
+        onClick={() => setLocation(`/loans/${loan.id}`)}
+        className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-base capitalize">{loanTitle}</h3>
+            <p className="text-sm text-gray-500">{loan.loanId}</p>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusMeta.badgeClass}`}>
+            {statusMeta.label}
+          </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Amount</p>
+            <p className="font-semibold text-gray-900">
+              K{loan.loanAmount?.toLocaleString()}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{dateLabel}</p>
+            <p className="font-semibold text-gray-900">
+              {formatDate(dateValue, { month: "short", day: "numeric" })}
+            </p>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const defaultQuickActions = [
     { icon: Plus, label: "Apply", sublabel: "New loan", path: "/apply", color: "bg-primary" },
     { icon: Wallet, label: "Pay", sublabel: "Make payment", path: "/repayment", color: "bg-[#28ca33]" },
     { icon: Calculator, label: "Calculate", sublabel: "Early repay", path: "/early-repayment", color: "bg-blue-500" },
     { icon: FileText, label: "History", sublabel: "View loans", path: "/loans", color: "bg-purple-500" },
   ];
+
+  const submittedQuickActions = [
+    { icon: ShieldCheck, label: "KYC", sublabel: "Verify now", path: "/kyc", color: "bg-primary" },
+    { icon: FileText, label: "Status", sublabel: "Track loan", path: "/loans", color: "bg-blue-500" },
+    { icon: User, label: "Profile", sublabel: "Your info", path: "/profile", color: "bg-emerald-500" },
+    { icon: LifeBuoy, label: "Support", sublabel: "Get help", path: "/help", color: "bg-amber-500" },
+  ];
+
+  const quickActions = isSubmittedOnlyUser ? submittedQuickActions : defaultQuickActions;
 
   const recentActivity = [
     {
@@ -520,32 +428,90 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Outstanding Balance Card */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-white/70 text-sm mb-1">Total Outstanding</p>
-                <p className="text-white text-4xl font-bold">
-                  K{loans
-                    .filter(l => l.displayStatus === "active")
-                    .reduce((sum, loan) => sum + (loan.amountRemaining || 0), 0)
-                    .toLocaleString()}
-                </p>
+          {/* Hero Card */}
+          {isSubmittedOnlyUser && inProgressLoan ? (
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-white/70 text-sm mb-1">
+                    {applicationStage === "kyc" ? "Application Submitted" : "Application In Review"}
+                  </p>
+                  <p className="text-white text-2xl font-bold">{inProgressLoan.loanId}</p>
+                  <p className="text-white/80 text-sm mt-1">
+                    {applicationStage === "kyc"
+                      ? "Complete KYC to speed up your approval."
+                      : "We are reviewing your application and will notify you soon."}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  {applicationStage === "kyc" ? (
+                    <ShieldCheck className="w-6 h-6 text-white" />
+                  ) : (
+                    <Clock className="w-6 h-6 text-white" />
+                  )}
+                </div>
               </div>
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <CreditCard className="w-6 h-6 text-white" />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">Requested</p>
+                  <p className="text-white font-bold text-base">K{inProgressLoan.loanAmount.toLocaleString()}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">Submitted</p>
+                  <p className="text-white font-bold text-base">
+                    {formatDate(inProgressLoan.createdAt, { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {applicationStage === "kyc" ? (
+                  <Button
+                    onClick={() => setLocation("/kyc")}
+                    className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
+                  >
+                    Complete KYC
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setLocation("/loans")}
+                    className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
+                  >
+                    View Status
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setLocation(applicationStage === "kyc" ? "/loans" : "/help")}
+                  variant="outline"
+                  className="h-11 rounded-xl border-white/40 text-white hover:bg-white/10"
+                >
+                  {applicationStage === "kyc" ? "View Status" : "Get Help"}
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-[#28ca33] rounded-full transition-all"
-                  style={{ width: `${activeLoan ? ((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100 : 0}%` }}
-                ></div>
+          ) : (
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-white/70 text-sm mb-1">Total Outstanding</p>
+                  <p className="text-white text-4xl font-bold">K{totalOutstanding.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <CreditCard className="w-6 h-6 text-white" />
+                </div>
               </div>
-              <span className="text-white text-sm font-medium">{activeLoan ? Math.round(((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100) : 0}% paid</span>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#28ca33] rounded-full transition-all"
+                    style={{ width: `${activeProgressWidth}%` }}
+                  ></div>
+                </div>
+                <span className="text-white text-sm font-medium">{activeProgressPercent}% paid</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </header>
 
@@ -575,15 +541,64 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Application Progress - Submitted Only */}
+        {isSubmittedOnlyUser && inProgressLoan && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-bold text-gray-900 text-lg">Application Progress</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {applicationStage === "kyc" ? "Next step: Complete KYC" : "We are reviewing your application"}
+                </p>
+              </div>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  applicationStage === "kyc" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-700"
+                }`}
+              >
+                {applicationStage === "kyc" ? "Action Needed" : "In Review"}
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {applicationSteps.map((step, index) => {
+                const Icon = step.state === "completed" ? CheckCircle : step.state === "current" ? Clock : Circle;
+                const iconClass =
+                  step.state === "completed"
+                    ? "text-primary"
+                    : step.state === "current"
+                      ? "text-amber-600"
+                      : "text-gray-300";
+                const titleClass = step.state === "pending" ? "text-gray-500" : "text-gray-900";
+                const connectorClass = step.state === "completed" ? "bg-primary/30" : "bg-gray-200";
+                const showConnector = index < applicationSteps.length - 1;
+
+                return (
+                  <div key={step.key} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <Icon className={`w-5 h-5 ${iconClass}`} />
+                      {showConnector && <div className={`w-px h-8 mt-1 ${connectorClass}`} />}
+                    </div>
+                    <div className="pb-2">
+                      <p className={`font-semibold ${titleClass}`}>{step.label}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{step.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Personalized Recommendations */}
-        {recommendations.length > 0 && (
+        {visibleRecommendations.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Lightbulb className="w-5 h-5 text-amber-500" />
               <h2 className="font-bold text-gray-900 text-lg">Recommendations for You</h2>
             </div>
             <div className="space-y-3">
-              {recommendations.slice(0, 3).map((rec) => {
+              {visibleRecommendations.slice(0, 3).map((rec) => {
                 const Icon = rec.icon;
                 return (
                   <button
@@ -642,12 +657,13 @@ export default function Dashboard() {
             >
               All ({loans.length})
             </button>
-            {["active", "pending_approval", "declined", "overdue", "completed"].map((status) => {
+            {["active", "submitted", "pending_approval", "declined", "overdue", "completed"].map((status) => {
               const count = loans.filter(l => l.displayStatus === status).length;
               if (count === 0) return null;
               
               const statusLabels: Record<string, string> = {
                 active: "Active",
+                submitted: "Submitted",
                 pending_approval: "Pending",
                 declined: "Declined",
                 overdue: "Overdue",
@@ -695,7 +711,7 @@ export default function Dashboard() {
         </div>
 
         {/* Payment Due Alert - Only show for active loans */}
-        {activeLoan && activeLoan.displayStatus === "active" && (
+        {activeLoan && activeLoan.displayStatus === "active" && activeLoan.nextPaymentDate && (
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -704,7 +720,7 @@ export default function Dashboard() {
               <div className="flex-1">
                 <h3 className="font-bold text-amber-800">Payment Due Soon</h3>
                 <p className="text-sm text-amber-700 mt-1">
-                  K{activeLoan.monthlyPayment?.toFixed(2)} due on {new Date(activeLoan.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  K{activeLoan.monthlyPayment?.toFixed(2)} due on {formatDate(activeLoan.nextPaymentDate, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
                 <Button
                   onClick={() => setLocation("/repayment")}

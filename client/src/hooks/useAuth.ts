@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react';
 import * as Types from '@/lib/api-types';
-import { authService } from '@/lib/api-service';
+import { authService, userService } from '@/lib/api-service';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { auditLogger, AuditEventType } from '@/lib/audit-logger';
 
@@ -72,7 +72,7 @@ export function useAuth() {
   const changePIN = useCallback(
     async (currentPIN: string, newPIN: string) => {
       try {
-        // API call would go here - implement in api-service
+        await userService.changePIN(currentPIN, newPIN);
         auditLogger.log(AuditEventType.PIN_CHANGE, 'PIN changed successfully', {}, 'info');
         return { success: true };
       } catch (error) {

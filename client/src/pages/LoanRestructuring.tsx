@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { loanService, restructuringService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
+import { AlertCircle, CheckCircle2, ChevronLeft } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ChevronLeft, CheckCircle2, AlertCircle } from "lucide-react";
-import { useState } from "react";
 
 /**
  * Loan Restructuring Request Page
@@ -17,13 +19,44 @@ export default function LoanRestructuring() {
   const [explanation, setExplanation] = useState("");
   const [proposedTenure, setProposedTenure] = useState("24");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [loanInfo, setLoanInfo] = useState<Types.LoanDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loanInfo = {
-    loanId: "GL-2025-001",
-    currentTenure: 12,
-    outstanding: 7500,
-    monthlyPayment: 916.67
-  };
+  useEffect(() => {
+    const fetchLoan = async () => {
+      try {
+        setIsLoading(true);
+        const loans = await loanService.getUserLoans();
+        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        if (!activeLoan) {
+          setError("No loan found to restructure.");
+          return;
+        }
+        setLoanInfo(activeLoan);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to load loans:", err);
+        setError("Failed to load loan information.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoan();
+  }, []);
+
+  const newMonthlyPayment = useMemo(() => {
+    if (!loanInfo) return 0;
+    const tenure = parseInt(proposedTenure || "0", 10);
+    if (!tenure) return 0;
+    return loanInfo.amountRemaining / tenure;
+  }, [loanInfo, proposedTenure]);
+
+  const savings = useMemo(() => {
+    if (!loanInfo) return 0;
+    return loanInfo.monthlyPayment - newMonthlyPayment;
+  }, [loanInfo, newMonthlyPayment]);
 
   const reasons = [
     { value: "job-loss", label: "Job Loss / Reduced Income" },
@@ -32,13 +65,25 @@ export default function LoanRestructuring() {
     { value: "other", label: "Other" }
   ];
 
-  const newMonthlyPayment = loanInfo.outstanding / parseInt(proposedTenure || "24");
-  const savings = loanInfo.monthlyPayment - newMonthlyPayment;
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (reason && explanation) {
-      setIsSubmitted(true);
+    if (!loanInfo || !reason || !explanation) return;
+
+    try {
+      const response = await restructuringService.requestRestructuring({
+        loanId: loanInfo.id,
+        newRepaymentMonths: parseInt(proposedTenure || "0", 10),
+        reason: `${reason}: ${explanation}`,
+      });
+
+      if (response.success) {
+        setIsSubmitted(true);
+      } else {
+        setError(response.message || "Failed to submit restructuring request.");
+      }
+    } catch (err) {
+      console.error("Failed to submit restructuring request:", err);
+      setError("Failed to submit restructuring request.");
     }
   };
 
@@ -73,7 +118,7 @@ export default function LoanRestructuring() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
         <div className="flex items-center h-14 px-4">
           <button
-            onClick={() => setLocation("/loans/1")}
+            onClick={() => setLocation("/loans")}
             className="w-10 h-10 flex items-center justify-center -ml-2"
           >
             <ChevronLeft className="w-6 h-6 text-slate-700" />
@@ -87,6 +132,13 @@ export default function LoanRestructuring() {
 
       {/* Main Content */}
       <main className="flex-1 px-4 py-6 pb-24">
+        {error && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl mb-4">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        )}
+
         {/* Info Banner */}
         <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl mb-4">
           <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -97,15 +149,15 @@ export default function LoanRestructuring() {
 
         {/* Current Loan */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4 mb-4">
-          <p className="text-xs text-slate-500 mb-2">{loanInfo.loanId}</p>
+          <p className="text-xs text-slate-500 mb-2">{loanInfo?.loanId || "Loan"}</p>
           <div className="flex justify-between items-center">
             <div>
               <p className="text-xs text-slate-500">Outstanding</p>
-              <p className="font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</p>
+              <p className="font-bold text-primary">K{loanInfo?.amountRemaining.toLocaleString() || "0"}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Current Payment</p>
-              <p className="font-bold text-slate-900">K{loanInfo.monthlyPayment.toFixed(0)}/mo</p>
+              <p className="font-bold text-slate-900">K{loanInfo?.monthlyPayment.toFixed(0) || "0"}/mo</p>
             </div>
           </div>
         </div>
@@ -158,14 +210,15 @@ export default function LoanRestructuring() {
                 <label className="block text-xs text-slate-500 mb-1">Months</label>
                 <Input
                   type="number"
-                  min={loanInfo.currentTenure + 1}
+                  min={loanInfo?.repaymentMonths ? loanInfo.repaymentMonths + 1 : 1}
                   max={60}
                   value={proposedTenure}
                   onChange={(e) => setProposedTenure(e.target.value)}
                   className="h-11 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0"
+                  disabled={!loanInfo || isLoading}
                 />
               </div>
-              
+
               <div className="bg-green-50 rounded-xl p-3">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs text-green-700">New Monthly Payment</span>
@@ -193,7 +246,7 @@ export default function LoanRestructuring() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 safe-area-bottom">
         <Button
           onClick={handleSubmit}
-          disabled={!reason || !explanation}
+          disabled={!loanInfo || !reason || !explanation || isLoading}
           className="w-full rounded-xl bg-primary hover:bg-primary/90 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold h-12"
         >
           Submit Request

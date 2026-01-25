@@ -1,7 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { userService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 import { ArrowLeft, Edit2, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 
 /**
  * Personal Details Page
@@ -12,17 +15,49 @@ import { useState } from "react";
 export default function PersonalDetails() {
   const [, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    email: "john@example.com",
-    phone: "+260123456789",
-    address: "123 Cairo Road, Lusaka"
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Types.UpdateProfileRequest>({});
 
-  const handleSave = () => {
-    setIsEditing(false);
-    // TODO: Call API to save changes
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setIsLoading(true);
+        const profile = await userService.getProfile();
+        setFormData({
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          email: profile.email,
+          phone: profile.phone,
+          address: profile.address,
+          city: profile.city,
+          country: profile.country,
+        });
+        setError(null);
+      } catch (err) {
+        console.error("Failed to load profile:", err);
+        setError("Failed to load personal details.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      await userService.updateProfile(formData);
+      setIsEditing(false);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      setError("Failed to save changes.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -42,6 +77,7 @@ export default function PersonalDetails() {
             <button
               onClick={() => setIsEditing(!isEditing)}
               className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-colors"
+              disabled={isLoading}
             >
               <Edit2 className="w-4 h-4" />
               <span className="text-sm font-semibold">{isEditing ? "Cancel" : "Edit"}</span>
@@ -53,90 +89,105 @@ export default function PersonalDetails() {
       {/* Main Content */}
       <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
         <div className="space-y-5">
-          {/* First Name */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <label className="block text-base font-bold text-gray-900 mb-2">First Name</label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-              />
-            ) : (
-              <p className="text-base text-gray-900 font-medium">{formData.firstName}</p>
-            )}
-          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
 
-          {/* Last Name */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <label className="block text-base font-bold text-gray-900 mb-2">Last Name</label>
-            {isEditing ? (
-              <input
-                type="text"
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-              />
-            ) : (
-              <p className="text-base text-gray-900 font-medium">{formData.lastName}</p>
-            )}
-          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <LoadingSpinner variant="spinner" size="lg" color="primary" />
+            </div>
+          ) : (
+            <>
+              {/* First Name */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <label className="block text-base font-bold text-gray-900 mb-2">First Name</label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.firstName || ""}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  />
+                ) : (
+                  <p className="text-base text-gray-900 font-medium">{formData.firstName}</p>
+                )}
+              </div>
 
-          {/* Email */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <label className="block text-base font-bold text-gray-900 mb-2">Email Address</label>
-            {isEditing ? (
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-              />
-            ) : (
-              <p className="text-base text-gray-900 font-medium">{formData.email}</p>
-            )}
-          </div>
+              {/* Last Name */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <label className="block text-base font-bold text-gray-900 mb-2">Last Name</label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.lastName || ""}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  />
+                ) : (
+                  <p className="text-base text-gray-900 font-medium">{formData.lastName}</p>
+                )}
+              </div>
 
-          {/* Phone */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <label className="block text-base font-bold text-gray-900 mb-2">Phone Number</label>
-            {isEditing ? (
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-              />
-            ) : (
-              <p className="text-base text-gray-900 font-medium">{formData.phone}</p>
-            )}
-          </div>
+              {/* Email */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <label className="block text-base font-bold text-gray-900 mb-2">Email Address</label>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={formData.email || ""}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  />
+                ) : (
+                  <p className="text-base text-gray-900 font-medium">{formData.email}</p>
+                )}
+              </div>
 
-          {/* Address */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <label className="block text-base font-bold text-gray-900 mb-2">Address</label>
-            {isEditing ? (
-              <textarea
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                rows={3}
-                className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-              />
-            ) : (
-              <p className="text-base text-gray-900 font-medium">{formData.address}</p>
-            )}
-          </div>
+              {/* Phone */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <label className="block text-base font-bold text-gray-900 mb-2">Phone Number</label>
+                {isEditing ? (
+                  <input
+                    type="tel"
+                    value={formData.phone || ""}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  />
+                ) : (
+                  <p className="text-base text-gray-900 font-medium">{formData.phone}</p>
+                )}
+              </div>
 
-          {/* Save Button */}
-          {isEditing && (
-            <Button
-              onClick={handleSave}
-              className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl flex items-center justify-center gap-2"
-            >
-              <Check className="w-5 h-5" />
-              Save Changes
-            </Button>
+              {/* Address */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <label className="block text-base font-bold text-gray-900 mb-2">Address</label>
+                {isEditing ? (
+                  <textarea
+                    value={formData.address || ""}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  />
+                ) : (
+                  <p className="text-base text-gray-900 font-medium">{formData.address}</p>
+                )}
+              </div>
+
+              {/* Save Button */}
+              {isEditing && (
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5" />
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </main>

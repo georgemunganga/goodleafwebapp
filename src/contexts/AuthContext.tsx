@@ -8,7 +8,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
-  register: (userData: RegisterData) => Promise<void>;
+  register: (userData: any) => Promise<void>;
+  registerWithLoanApplication: (userData: any, loanData: any) => Promise<void>;
   fetchUserProfile: () => Promise<void>;
 }
 
@@ -56,7 +57,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const { user: userData, token } = await UserService.login(credentials);
 
       localStorage.setItem('token', token);
-      setUser(userData);
+      setUser({
+        ...userData,
+        name: userData.name || `${userData.firstName} ${userData.lastName}`
+      });
       setIsAuthenticated(true);
     } catch (error) {
       console.error('Login error:', error);
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (userData: any) => {
     try {
       setIsLoading(true);
       const result = await UserService.register(userData);
@@ -75,6 +79,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await login({ email: userData.email, phone: userData.phone, password: userData.password });
     } catch (error) {
       console.error('Registration error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const registerWithLoanApplication = async (userData: any, loanData: any) => {
+    try {
+      setIsLoading(true);
+      // Use the new centralized API method
+      const { authService } = await import('@/lib/api-service');
+      const result = await authService.registerWithLoanApplication(userData, loanData);
+
+      // Update user state with the returned user data
+      setUser({
+        ...result.user,
+        name: result.user.name || `${result.user.firstName} ${result.user.lastName}`
+      });
+      setIsAuthenticated(true);
+
+      // Store the token if provided
+      if (result.token) {
+        localStorage.setItem('token', result.token);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Registration with loan application error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -101,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       login,
       logout,
       register,
+      registerWithLoanApplication,
       fetchUserProfile
     }}>
       {children}

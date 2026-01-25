@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { FormRecoveryModal } from "@/components/FormRecoveryModal";
 import { useFormPersistence } from "@/hooks/useFormPersistence";
+import { loanService, paymentService } from "@/lib/api-service";
+import * as Types from "@/lib/api-types";
 
 /**
  * Repayment Submission Page
@@ -21,6 +23,10 @@ export default function RepaymentSubmission() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
+  const [loanInfo, setLoanInfo] = useState<Types.LoanDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form persistence
   const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
@@ -36,11 +42,29 @@ export default function RepaymentSubmission() {
     branchCode: "001"
   };
 
-  const loanInfo = {
-    loanId: "GL-2025-001",
-    outstanding: 7500,
-    monthlyPayment: 916.67
-  };
+  useEffect(() => {
+    const fetchLoan = async () => {
+      try {
+        setIsLoading(true);
+        const loans = await loanService.getUserLoans();
+        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        if (!activeLoan) {
+          setError("No active loan found for repayment.");
+          return;
+        }
+        setLoanInfo(activeLoan);
+        setPaymentAmount(activeLoan.monthlyPayment.toFixed(2));
+        setError(null);
+      } catch (err) {
+        console.error("Failed to load loans:", err);
+        setError("Failed to load loan information.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoan();
+  }, []);
 
   // Auto-save on mount
   useEffect(() => {
@@ -70,15 +94,44 @@ export default function RepaymentSubmission() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("File must be 10MB or smaller.");
+        return;
+      }
       setUploadedFile(file.name);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (uploadedFile) {
-      clearForm(); // Clear saved form after successful submission
-      setIsSubmitted(true);
+    if (!uploadedFile || !loanInfo) return;
+
+    const amount = parseFloat(paymentAmount) || 0;
+    if (!amount) {
+      toast.error("Enter a valid payment amount.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await paymentService.submitPayment({
+        loanId: loanInfo.id,
+        amount,
+        paymentMethod: "bank_transfer",
+        reference: uploadedFile,
+      });
+
+      if (response.success) {
+        clearForm(); // Clear saved form after successful submission
+        setIsSubmitted(true);
+      } else {
+        toast.error(response.message || "Failed to submit payment.");
+      }
+    } catch (err) {
+      console.error("Payment submission failed:", err);
+      toast.error("Failed to submit payment.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,12 +201,24 @@ export default function RepaymentSubmission() {
 
       {/* Main Content */}
       <main className="px-4 py-6 space-y-4">
+        {error && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl">
+            <Info className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        )}
+
         {/* Payment Amount */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-xs text-slate-500">Loan {loanInfo.loanId}</p>
-              <p className="text-slate-600 text-sm">Outstanding: <span className="font-bold text-primary">K{loanInfo.outstanding.toLocaleString()}</span></p>
+              <p className="text-xs text-slate-500">Loan {loanInfo?.loanId || "Loan"}</p>
+              <p className="text-slate-600 text-sm">
+                Outstanding:{" "}
+                <span className="font-bold text-primary">
+                  K{loanInfo ? loanInfo.amountRemaining.toLocaleString() : "0"}
+                </span>
+              </p>
             </div>
           </div>
           <div className="space-y-2">
@@ -165,9 +230,10 @@ export default function RepaymentSubmission() {
               value={paymentAmount}
               onChange={(e) => setPaymentAmount(e.target.value)}
               className="h-12 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0 text-xl font-bold text-center"
+              disabled={isLoading}
             />
             <p className="text-xs text-slate-500 text-center">
-              Suggested: K{loanInfo.monthlyPayment.toFixed(2)}
+              Suggested: K{loanInfo ? loanInfo.monthlyPayment.toFixed(2) : "0.00"}
             </p>
           </div>
         </div>
@@ -268,10 +334,10 @@ export default function RepaymentSubmission() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={!uploadedFile}
+            disabled={!uploadedFile || isSubmitting || isLoading || !loanInfo}
             className="w-full rounded-xl bg-primary hover:bg-primary/90 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold h-12"
           >
-            Submit Payment
+            {isSubmitting ? "Submitting..." : "Submit Payment"}
           </Button>
         </form>
       </main>

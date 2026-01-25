@@ -2,7 +2,9 @@
 
 export interface User {
   id: number;
-  name: string;
+  firstName: string;
+  lastName: string;
+  name?: string; // Keep for backward compatibility
   email: string;
   phone?: string;
   balance?: number;
@@ -106,6 +108,20 @@ export interface LoginCredentials {
 export interface RegisterData {
   email: string;
   password: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   phone?: string;
+}
+
+export interface RegisterWithLoanData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  pin: string;
+  loanProductId: number;
+  institutionName: string | null;
+  loanAmount: number;
+  repaymentMonths: number;
 }

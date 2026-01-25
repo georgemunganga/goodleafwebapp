@@ -11,7 +11,7 @@ interface FormFieldProps {
   label?: string;
   error?: FieldError;
   required?: boolean;
-  hint?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }
 

@@ -1,18 +1,18 @@
 // services/UserService.ts
-import { authAPI, userAPI } from '@/lib/api';
+import { authService, userService } from '@/lib/api-service';
 import { User, LoginCredentials, RegisterData } from '@/types';
 
 class UserService {
   async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
     try {
-      const response = await authAPI.login(credentials);
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Login failed');
-      }
+      const response = await authService.login(credentials);
 
       return {
-        user: response.data.user,
-        token: response.data.token
+        user: {
+          ...response.user,
+          name: response.user.name || `${response.user.firstName} ${response.user.lastName}`
+        },
+        token: response.token
       };
     } catch (error) {
       console.error('Login error:', error);
@@ -20,15 +20,15 @@ class UserService {
     }
   }
 
-  async register(userData: RegisterData): Promise<{ user: User }> {
+  async register(userData: any): Promise<{ user: User }> {
     try {
-      const response = await authAPI.register(userData);
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Registration failed');
-      }
+      const response = await authService.register(userData);
 
       return {
-        user: response.data.user
+        user: {
+          ...response.user,
+          name: response.user.name || `${response.user.firstName} ${response.user.lastName}`
+        }
       };
     } catch (error) {
       console.error('Registration error:', error);
@@ -38,7 +38,7 @@ class UserService {
 
   async logout(): Promise<void> {
     try {
-      await authAPI.logout();
+      authService.logout();
       // Clear local storage handled by interceptor
     } catch (error) {
       console.error('Logout error:', error);
@@ -49,8 +49,11 @@ class UserService {
 
   async getCurrentUser(): Promise<User> {
     try {
-      const response = await userAPI.getProfile();
-      return response.data;
+      const response = await userService.getProfile();
+      return {
+        ...response,
+        name: response.name || `${response.firstName} ${response.lastName}`
+      };
     } catch (error) {
       console.error('Get user profile error:', error);
       throw error;
@@ -59,8 +62,12 @@ class UserService {
 
   async updateUserProfile(profileData: Partial<User>): Promise<User> {
     try {
-      const response = await userAPI.updateProfile(profileData);
-      return response.data.user ?? response.data;
+      const response = await userService.updateProfile(profileData);
+      const userData = response.user ?? response;
+      return {
+        ...userData,
+        name: userData.name || `${userData.firstName} ${userData.lastName}`
+      };
     } catch (error) {
       console.error('Update user profile error:', error);
       throw error;

@@ -247,7 +247,18 @@ app.post("/api/auth/login", (req, res) => {
 });
 
 app.post("/api/auth/register", (req, res) => {
-  const { email, password, name, phone } = req.body;
+  const { email, password, name, firstName, lastName, phone, loanApplication } = req.body;
+
+  // Support both the old 'name' field and new 'firstName'/'lastName' fields
+  let fullName = name;
+  if (firstName && lastName) {
+    fullName = `${firstName} ${lastName}`;
+  } else if (!fullName && firstName) {
+    fullName = firstName;
+  } else if (!fullName && lastName) {
+    fullName = lastName;
+  }
+
   const existingUser = users.find(
     (item) => item.email === email || (phone && normalizePhone(item.phone) === normalizePhone(phone))
   );
@@ -258,7 +269,9 @@ app.post("/api/auth/register", (req, res) => {
 
   const newUser = {
     id: users.length + 1,
-    name,
+    name: fullName,
+    firstName: firstName || '',
+    lastName: lastName || '',
     email,
     password,
     phone: phone || "",
@@ -272,11 +285,51 @@ app.post("/api/auth/register", (req, res) => {
   };
 
   users.push(newUser);
-  res.json({
+
+  // If loan application data is provided, create the loan application
+  let loan = null;
+  if (loanApplication) {
+    const { type, amount, tenure, interestRate, amountDue, totalRepayment, purpose } = loanApplication;
+    const loanTenure = Number(tenure) || 12;
+    const rate = Number(interestRate) || getInterestRate(newUser.creditScore);
+    const terms = calculateLoanTerms(Number(amount), rate, loanTenure);
+    const today = new Date();
+
+    const newLoan = {
+      id: loans.length + 1,
+      userId: newUser.id,
+      type,
+      amount: Number(amount),
+      status: "pending",
+      date: toISODate(today),
+      tenure: loanTenure,
+      interestRate: rate,
+      amountDue: Number(amountDue) || terms.emi,
+      totalRepayment: Number(totalRepayment) || terms.totalPayment,
+      disbursed: round2(Number(amount) * 0.95),
+      outstanding: Number(totalRepayment) || terms.totalPayment,
+      progress: 0,
+      remainingMonths: loanTenure,
+      nextPayment: toISODate(addMonths(today, 1)),
+      purpose,
+    };
+
+    loans.push(newLoan);
+    loan = newLoan;
+  }
+
+  const response = {
     success: true,
     message: "User registered successfully",
     user: sanitizeUser(newUser),
-  });
+  };
+
+  if (loan) {
+    response["loan"] = loan;
+    response["message"] = "User registered and loan application submitted successfully";
+  }
+
+  res.json(response);
 });
 
 app.post("/api/auth/logout", (_req, res) => {

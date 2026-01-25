@@ -19,8 +19,8 @@ export function useNotificationBadges(loans: Types.LoanDetails[] = []) {
     const now = new Date();
 
     loans.forEach((loan) => {
-      // 1. Pending approval
-      if (loan.status === 'pending') {
+      // 1. Pending approval / submitted
+      if (loan.status === 'pending' || loan.status === 'submitted') {
         dashboardBadge++;
         loansBadge++;
       }

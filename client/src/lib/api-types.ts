@@ -10,14 +10,31 @@ export interface LoginRequest {
   pin: string;
 }
 
+export interface LoginOTPResponse {
+  success: boolean;
+  message: string;
+  otpId: string;
+}
+
 export interface LoginResponse {
   success: boolean;
+  message?: string;
   user: {
     id: string;
-    name: string;
+    name?: string;
+    firstName?: string | null;
+    lastName?: string | null;
     email: string;
     phone: string;
-    avatar?: string;
+    dateOfBirth?: string | null;
+    address?: string | null;
+    city?: string | null;
+    country?: string | null;
+    idNumber?: string | null;
+    idType?: string | null;
+    avatar?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
   };
   token: string;
   refreshToken: string;
@@ -41,6 +58,24 @@ export interface ResetPINRequest {
 }
 
 export interface ResetPINResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ValidatePinTokenResponse {
+  success: boolean;
+  message?: string;
+  email?: string;
+  expiresAt?: string;
+}
+
+export interface SetPinRequest {
+  token: string;
+  pin: string;
+  confirmPin: string;
+}
+
+export interface SetPinResponse {
   success: boolean;
   message: string;
 }
@@ -84,6 +119,7 @@ export interface LoanApplicationRequest {
   loanType: "personal" | "business";
   loanCategory: string;
   institutionName?: string;
+  loanProductId?: number;
   loanAmount: number;
   repaymentMonths: number;
   purpose?: string;
@@ -117,6 +153,76 @@ export interface PreEligibilityResponse {
   interestRate: number;
 }
 
+// ============ Loan Configuration ============
+export interface LoanConfigRange {
+  min?: number;
+  default?: number;
+  max?: number;
+}
+
+export interface LoanConfigDuration extends LoanConfigRange {
+  period: string;
+}
+
+export interface LoanConfigTerms {
+  principal: LoanConfigRange;
+  duration: LoanConfigDuration;
+  repayments: LoanConfigRange;
+}
+
+export interface LoanConfigMethod {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface LoanConfigRateType {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface LoanConfigRates extends LoanConfigRange {
+  period: string;
+  methods: LoanConfigMethod[];
+  types: LoanConfigRateType[];
+}
+
+export interface LoanConfigRepaymentCycle {
+  id: number;
+  name: string | null;
+}
+
+export interface LoanConfigProduct {
+  id: number;
+  name: string;
+  description: string | null;
+  terms: LoanConfigTerms;
+  rates: LoanConfigRates;
+  repaymentCycles: LoanConfigRepaymentCycle[];
+  compliances: unknown[];
+}
+
+export interface LoanConfigCategory {
+  id: number;
+  name: string;
+  description: string | null;
+  products: LoanConfigProduct[];
+}
+
+export interface LoanConfigLoanType {
+  id: number;
+  name: string;
+  description: string | null;
+  categories: LoanConfigCategory[];
+}
+
+export interface LoanConfigResponse {
+  success: boolean;
+  message: string;
+  data: LoanConfigLoanType[];
+}
+
 // ============ Loan Details ============
 export interface LoanDetails {
   id: string;
@@ -131,7 +237,7 @@ export interface LoanDetails {
   totalRepayment: number;
   repaymentMonths: number;
   monthlyPayment: number;
-  status: "active" | "completed" | "defaulted" | "pending" | "rejected";
+  status: "submitted" | "active" | "completed" | "defaulted" | "pending" | "rejected";
   approvalDate: string;
   firstPaymentDate: string;
   maturityDate: string;
