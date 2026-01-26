@@ -4,7 +4,7 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: process.env.NODE_ENV === 'production'
     ? '/api'
-    : 'http://localhost:8000/api/v1', // Backend runs on port 8000
+    : 'https://admin.goodleafcapital.com/api/v1', // Backend runs on port 8000
   timeout: 10000, // 10 seconds timeout
   headers: {
     'Content-Type': 'application/json',

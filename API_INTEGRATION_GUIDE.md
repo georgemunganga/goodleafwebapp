@@ -73,7 +73,7 @@ This document outlines the API integration architecture for the Goodleaf Loans w
 
 ```env
 # API Configuration
-VITE_API_URL=http://localhost:8000/api
+VITE_API_URL=https://admin.goodleafcapital.com/api
 
 # Demo Mode (uses mock data instead of real API)
 VITE_USAGE_DEMO=false
