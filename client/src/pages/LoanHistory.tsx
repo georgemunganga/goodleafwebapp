@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ChevronRight, Search, X, FileText } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ChevronRight, Search, X, FileText, Clock } from "lucide-react";
+import { useMemo, useState } from "react";
 import { ListSkeletonLoader } from "@/components/ui/skeleton-loader";
-import { loanService } from "@/lib/api-service";
+import { useUserLoans } from "@/hooks/useLoanQueries";
+import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
 import * as Types from "@/lib/api-types";
 
 interface Loan {
@@ -29,42 +30,32 @@ export default function LoanHistory() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [loans, setLoans] = useState<Loan[]>([]);
+  const loansQuery = useUserLoans();
+  const { canApply, inProgressLoan } = useLoanApplicationGate();
+  const isLoading = loansQuery.isLoading;
+  const error = loansQuery.error
+    ? loansQuery.error instanceof Error
+      ? loansQuery.error.message
+      : (loansQuery.error as { message?: string }).message || "Failed to load loans. Please try again."
+    : null;
 
-  useEffect(() => {
-    const fetchLoans = async () => {
-      try {
-        setIsLoading(true);
-        const fetchedLoans = await loanService.getUserLoans();
-        const mappedLoans = fetchedLoans.map((loan) => {
-          const progress = loan.loanAmount > 0 ? Math.round((loan.amountPaid / loan.loanAmount) * 100) : 0;
-          const loanTypeLabel = loan.loanType === "business" ? "Business Loan" : "Personal Loan";
-          return {
-            id: loan.id,
-            reference: loan.loanId,
-            type: loanTypeLabel,
-            amount: loan.loanAmount,
-            status: mapLoanStatus(loan.status),
-            date: new Date(loan.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-            outstanding: loan.amountRemaining,
-            progress,
-          } as Loan;
-        });
-        setLoans(mappedLoans);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to fetch loans:", err);
-        setError("Failed to load loans. Please try again.");
-        setLoans([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLoans();
-  }, []);
+  const loans = useMemo(() => {
+    const fetchedLoans = loansQuery.data ?? [];
+    return fetchedLoans.map((loan) => {
+      const progress = loan.loanAmount > 0 ? Math.round((loan.amountPaid / loan.loanAmount) * 100) : 0;
+      const loanTypeLabel = loan.loanType === "business" ? "Business Loan" : "Personal Loan";
+      return {
+        id: loan.id,
+        reference: loan.loanId,
+        type: loanTypeLabel,
+        amount: loan.loanAmount,
+        status: mapLoanStatus(loan.status),
+        date: new Date(loan.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        outstanding: loan.amountRemaining,
+        progress,
+      } as Loan;
+    });
+  }, [loansQuery.data]);
 
   function mapLoanStatus(status: Types.LoanDetails["status"]): Loan["status"] {
     switch (status) {
@@ -260,12 +251,27 @@ export default function LoanHistory() {
             <p className="text-gray-500 text-base mb-6">
               {searchTerm ? "Try adjusting your search or filters" : "You don't have any loans yet"}
             </p>
-            <Button
-              onClick={() => setLocation("/apply")}
-              className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6 text-base"
-            >
-              Apply for a Loan
-            </Button>
+            {canApply ? (
+              <Button
+                onClick={() => setLocation("/apply")}
+                className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6 text-base"
+              >
+                Apply for a Loan
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-center gap-3">
+                  <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                </div>
+                <Button
+                  onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                  className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6 text-base"
+                >
+                  View Application Status
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </main>

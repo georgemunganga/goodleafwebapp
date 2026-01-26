@@ -1,17 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, MessageSquare, AlertCircle, Mail, Smartphone } from "lucide-react";
-import { useEffect, useState } from "react";
-import { notificationService } from "@/lib/api-service";
+import { ArrowLeft, Bell, MessageSquare, AlertCircle, Mail, Smartphone, Loader2 } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import * as Types from "@/lib/api-types";
+import { useNotificationSettings, useUpdateNotificationSettings } from "@/hooks/useUserQueries";
+import { toast } from "sonner";
 
 /**
  * Notifications Settings Page
  * Design: Mobile-native banking app style with consistent sizing
- * - Toggle payment reminders
- * - Toggle alerts
- * - Notification frequency
+ * - Auto-save on toggle with optimistic UI
+ * - Rollback on API failure
+ * - Toast feedback for every action
  */
+
+type ToggleKey = "emailNotifications" | "smsNotifications" | "pushNotifications" | "paymentReminders" | "applicationUpdates" | "promotions";
+
 export default function NotificationsSettings() {
   const [, setLocation] = useLocation();
   const [settings, setSettings] = useState<Types.NotificationSettings>({
@@ -22,57 +26,131 @@ export default function NotificationsSettings() {
     paymentReminders: true,
     applicationUpdates: true,
     promotions: false,
-    reminderFrequency: "daily",
+    notificationFrequency: "monthly",
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const settingsQuery = useNotificationSettings();
+  const updateSettings = useUpdateNotificationSettings();
+  const isLoading = settingsQuery.isLoading;
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Keep track of last confirmed server state for rollback
+  const serverStateRef = useRef<Types.NotificationSettings | null>(null);
+
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoading(true);
-        const data = await notificationService.getNotificationSettings();
-        setSettings(data);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to load notification settings:", err);
-        setError("Failed to load notification settings.");
-      } finally {
-        setIsLoading(false);
+    if (!settingsQuery.data) return;
+    setSettings(settingsQuery.data);
+    serverStateRef.current = settingsQuery.data;
+    setError(null);
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (!settingsQuery.error) return;
+    console.error("Failed to load notification settings:", settingsQuery.error);
+    setError("Failed to load notification settings.");
+    toast.error("Failed to load settings");
+  }, [settingsQuery.error]);
+
+  // Auto-save function with optimistic update and rollback
+  const saveSettings = useCallback(async (newSettings: Types.NotificationSettings, changedKey: string) => {
+    const previousState = serverStateRef.current;
+
+    try {
+      setSavingKey(changedKey);
+
+      // Call API
+      const response = await updateSettings.mutateAsync({
+        emailNotifications: newSettings.emailNotifications,
+        smsNotifications: newSettings.smsNotifications,
+        pushNotifications: newSettings.pushNotifications,
+        paymentReminders: newSettings.paymentReminders,
+        applicationUpdates: newSettings.applicationUpdates,
+        promotions: newSettings.promotions,
+        notificationFrequency: newSettings.notificationFrequency,
+      });
+
+      // Success - update server state reference
+      const nextState = response ?? newSettings;
+      setSettings(nextState);
+      serverStateRef.current = nextState;
+      setError(null);
+      toast.success("Setting updated");
+
+    } catch (err) {
+      console.error("Failed to save setting:", err);
+
+      // Rollback to previous server state
+      if (previousState) {
+        setSettings(previousState);
+        toast.error("Failed to update. Reverted to previous setting.");
+      } else {
+        toast.error("Failed to update setting");
       }
+    } finally {
+      setSavingKey(null);
+    }
+  }, [updateSettings]);
+
+  const handleToggle = useCallback((key: ToggleKey) => {
+    if (savingKey) return; // Prevent multiple simultaneous saves
+
+    const newSettings = {
+      ...settings,
+      [key]: !settings[key]
     };
 
-    fetchSettings();
-  }, []);
+    // Optimistic update
+    setSettings(newSettings);
 
-  const handleToggle = (key: keyof Types.NotificationSettings) => {
-    setSettings({ ...settings, [key]: !settings[key] });
-  };
+    // Auto-save to API
+    saveSettings(newSettings, key);
+  }, [settings, savingKey, saveSettings]);
 
-  const handleFrequencyChange = (freq: Types.NotificationSettings["reminderFrequency"]) => {
-    setSettings({ ...settings, reminderFrequency: freq });
-  };
+  const handleFrequencyChange = useCallback((freq: Types.NotificationFrequency) => {
+    if (savingKey || settings.notificationFrequency === freq) return;
 
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      await notificationService.updateNotificationSettings({
-        emailNotifications: settings.emailNotifications,
-        smsNotifications: settings.smsNotifications,
-        pushNotifications: settings.pushNotifications,
-        paymentReminders: settings.paymentReminders,
-        applicationUpdates: settings.applicationUpdates,
-        promotions: settings.promotions,
-        reminderFrequency: settings.reminderFrequency,
-      });
-      setError(null);
-    } catch (err) {
-      console.error("Failed to save notification settings:", err);
-      setError("Failed to save notification settings.");
-    } finally {
-      setIsSaving(false);
-    }
+    const newSettings = {
+      ...settings,
+      notificationFrequency: freq
+    };
+
+    // Optimistic update
+    setSettings(newSettings);
+
+    // Auto-save to API
+    saveSettings(newSettings, "notificationFrequency");
+  }, [settings, savingKey, saveSettings]);
+
+  // Toggle switch component with loading state
+  const ToggleSwitch = ({
+    settingKey,
+    enabled
+  }: {
+    settingKey: ToggleKey;
+    enabled: boolean;
+  }) => {
+    const isSaving = savingKey === settingKey;
+
+    return (
+      <button
+        onClick={() => handleToggle(settingKey)}
+        className={`relative w-14 h-8 rounded-full transition-colors ${
+          enabled ? "bg-primary" : "bg-gray-300"
+        } ${isSaving ? "opacity-70" : ""}`}
+        disabled={isLoading || isSaving}
+        aria-label={enabled ? "Enabled" : "Disabled"}
+      >
+        <div
+          className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform flex items-center justify-center ${
+            enabled ? "translate-x-7" : "translate-x-1"
+          }`}
+        >
+          {isSaving && (
+            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+          )}
+        </div>
+      </button>
+    );
   };
 
   return (
@@ -88,6 +166,7 @@ export default function NotificationsSettings() {
             <span className="text-base font-semibold">Back</span>
           </button>
           <h1 className="text-2xl font-bold">Notifications</h1>
+          <p className="text-white/70 text-sm mt-1">Changes save automatically</p>
         </div>
       </header>
 
@@ -97,6 +176,14 @@ export default function NotificationsSettings() {
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
               <p className="text-sm text-red-800">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
             </div>
           )}
 
@@ -112,19 +199,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">Updates sent via email</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("emailNotifications")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.emailNotifications ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.emailNotifications ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="emailNotifications"
+                enabled={settings.emailNotifications}
+              />
             </div>
           </div>
 
@@ -140,19 +218,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">Critical alerts via SMS</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("smsNotifications")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.smsNotifications ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.smsNotifications ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="smsNotifications"
+                enabled={settings.smsNotifications}
+              />
             </div>
           </div>
 
@@ -168,19 +237,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">In-app alerts and reminders</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("pushNotifications")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.pushNotifications ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.pushNotifications ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="pushNotifications"
+                enabled={settings.pushNotifications}
+              />
             </div>
           </div>
 
@@ -196,19 +256,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">Get reminded before payment due date</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("paymentReminders")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.paymentReminders ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.paymentReminders ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="paymentReminders"
+                enabled={settings.paymentReminders}
+              />
             </div>
           </div>
 
@@ -224,19 +275,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">Status updates on your loans</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("applicationUpdates")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.applicationUpdates ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.applicationUpdates ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="applicationUpdates"
+                enabled={settings.applicationUpdates}
+              />
             </div>
           </div>
 
@@ -252,19 +294,10 @@ export default function NotificationsSettings() {
                   <p className="text-sm text-gray-500">Special offers and promotions</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleToggle("promotions")}
-                className={`w-14 h-8 rounded-full transition-colors ${
-                  settings.promotions ? "bg-primary" : "bg-gray-300"
-                }`}
-                disabled={isLoading}
-              >
-                <div
-                  className={`w-6 h-6 bg-white rounded-full transition-transform ${
-                    settings.promotions ? "translate-x-7" : "translate-x-1"
-                  }`}
-                ></div>
-              </button>
+              <ToggleSwitch
+                settingKey="promotions"
+                enabled={settings.promotions}
+              />
             </div>
           </div>
 
@@ -272,35 +305,30 @@ export default function NotificationsSettings() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-6">
             <p className="font-bold text-base text-gray-900 mb-4">Notification Frequency</p>
             <div className="space-y-3">
-              {[
-                { value: "daily", label: "Daily" },
-                { value: "weekly", label: "Weekly" },
-                { value: "monthly", label: "Monthly" }
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleFrequencyChange(option.value as Types.NotificationSettings["reminderFrequency"])}
-                  className={`w-full p-4 rounded-xl border-2 text-left font-bold text-base transition-all ${
-                    settings.reminderFrequency === option.value
-                      ? "border-primary bg-primary/5"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                  disabled={isLoading}
-                >
-                  {option.label}
-                </button>
-              ))}
+              {(settings.frequencyOptions || ["daily", "weekly", "monthly"]).map((freq) => {
+                const isSelected = settings.notificationFrequency === freq;
+                const isSaving = savingKey === "notificationFrequency" && isSelected;
+
+                return (
+                  <button
+                    key={freq}
+                    onClick={() => handleFrequencyChange(freq)}
+                    className={`w-full p-4 rounded-xl border-2 text-left font-bold text-base transition-all capitalize flex items-center justify-between ${
+                      isSelected
+                        ? "border-primary bg-primary/5"
+                        : "border-gray-200 bg-white hover:border-gray-300"
+                    }`}
+                    disabled={isLoading || !!savingKey}
+                  >
+                    <span>{freq.charAt(0).toUpperCase() + freq.slice(1)}</span>
+                    {isSaving && (
+                      <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
-
-          {/* Save Button */}
-          <Button
-            className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl mt-6"
-            onClick={handleSave}
-            disabled={isSaving || isLoading}
-          >
-            {isSaving ? "Saving..." : "Save Settings"}
-          </Button>
         </div>
       </main>
     </div>

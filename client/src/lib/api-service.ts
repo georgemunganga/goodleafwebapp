@@ -440,7 +440,8 @@ export const userService = {
         updatedAt: new Date().toISOString(),
       };
     }
-    return apiCall('/users/profile');
+    const response = await apiCall<unknown>('/users/profile');
+    return extractDataObject<Types.UserProfile>(response);
   },
 
   async updateProfile(request: Types.UpdateProfileRequest): Promise<Types.UpdateProfileResponse> {
@@ -468,9 +469,45 @@ export const userService = {
     if (USAGE_DEMO) {
       return { success: true, message: 'PIN changed successfully' };
     }
-    return apiCall('/users/change-pin', {
+    const verification = await userService.verifyPIN(oldPin);
+    if (!verification?.verificationId) {
+      throw new Error('PIN verification failed.');
+    }
+    await userService.setNewPIN(verification.verificationId, newPin, newPin);
+    return { success: true, message: 'PIN changed successfully' };
+  },
+
+  async verifyPIN(currentPin: string): Promise<Types.VerifyPinResponse> {
+    if (USAGE_DEMO) {
+      // In demo mode, accept any 4-digit PIN
+      if (currentPin.length === 4) {
+        return {
+          verificationId: 'demo-verify-' + Date.now(),
+          expiresIn: 300,
+        };
+      }
+      throw new Error('Invalid PIN');
+    }
+    return apiCall<Types.VerifyPinResponse>('/users/verify-pin', {
       method: 'POST',
-      body: JSON.stringify({ oldPin, newPin }),
+      body: JSON.stringify({ currentPin }),
+    });
+  },
+
+  async setNewPIN(
+    verificationId: string,
+    newPin: string,
+    confirmPin: string,
+  ): Promise<Types.SetUserPinResponse> {
+    if (USAGE_DEMO) {
+      if (newPin === confirmPin && newPin.length === 4) {
+        return { message: 'PIN set successfully' };
+      }
+      throw new Error('PINs do not match');
+    }
+    return apiCall<Types.SetUserPinResponse>('/users/set-pin', {
+      method: 'POST',
+      body: JSON.stringify({ verificationId, newPin, confirmPin }),
     });
   },
 };
@@ -917,10 +954,12 @@ export const notificationService = {
         paymentReminders: true,
         applicationUpdates: true,
         promotions: false,
-        reminderFrequency: 'weekly',
+        notificationFrequency: 'monthly',
+        frequencyOptions: ['daily', 'weekly', 'monthly'],
       };
     }
-    return apiCall('/notifications/settings');
+    const response = await apiCall<unknown>('/notifications/settings');
+    return extractDataObject<Types.NotificationSettings>(response);
   },
 
   async updateNotificationSettings(request: Types.UpdateNotificationSettingsRequest): Promise<Types.NotificationSettings> {
@@ -933,13 +972,14 @@ export const notificationService = {
         paymentReminders: request.paymentReminders ?? true,
         applicationUpdates: request.applicationUpdates ?? true,
         promotions: request.promotions ?? false,
-        reminderFrequency: request.reminderFrequency ?? 'weekly',
+        notificationFrequency: request.notificationFrequency ?? 'monthly',
       };
     }
-    return apiCall('/notifications/settings', {
+    const response = await apiCall<unknown>('/notifications/settings', {
       method: 'PUT',
       body: JSON.stringify(request),
     });
+    return extractDataObject<Types.NotificationSettings>(response);
   },
 };
 
@@ -956,7 +996,8 @@ export const securityService = {
         accountLocked: false,
       };
     }
-    return apiCall('/security/settings');
+    const response = await apiCall<unknown>('/security/settings');
+    return extractDataObject<Types.SecuritySettings>(response);
   },
 
   async enableTwoFactor(request: Types.EnableTwoFactorRequest): Promise<Types.EnableTwoFactorResponse> {
@@ -972,5 +1013,103 @@ export const securityService = {
       method: 'POST',
       body: JSON.stringify(request),
     });
+  },
+
+  async disableTwoFactor(): Promise<Types.DisableTwoFactorResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'Two-factor authentication disabled',
+      };
+    }
+    return apiCall('/security/disable-2fa', {
+      method: 'POST',
+    });
+  },
+
+  async getActiveSessions(): Promise<Types.ActiveSession[]> {
+    if (USAGE_DEMO) {
+      return [
+        {
+          id: 'session-1',
+          device: 'iPhone 12',
+          browser: 'Safari',
+          location: 'Lusaka, Zambia',
+          ipAddress: '196.1.xxx.xxx',
+          lastActive: new Date().toISOString(),
+          isCurrent: true,
+        },
+        {
+          id: 'session-2',
+          device: 'Chrome on Windows',
+          browser: 'Chrome',
+          location: 'Lusaka, Zambia',
+          ipAddress: '196.1.xxx.xxx',
+          lastActive: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          isCurrent: false,
+        },
+      ];
+    }
+    const response = await apiCall<unknown>('/security/sessions');
+    return extractDataArray<Types.ActiveSession>(response);
+  },
+
+  async signOutSession(sessionId: string): Promise<Types.SignOutSessionResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'Session terminated successfully',
+      };
+    }
+    return apiCall(`/security/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async signOutAllDevices(): Promise<Types.SignOutAllDevicesResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'All other sessions terminated',
+        sessionsTerminated: 1,
+      };
+    }
+    return apiCall('/security/sessions/all', {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============ Support / Contact ============
+export const supportService = {
+  async submitContactRequest(request: Types.ContactSupportRequest): Promise<Types.ContactSupportResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        ticketId: 'TICKET-' + Date.now(),
+        message: 'Your message has been received. We will get back to you shortly.',
+      };
+    }
+    return apiCall('/support/contact', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  async getTickets(): Promise<Types.SupportTicket[]> {
+    if (USAGE_DEMO) {
+      return [
+        {
+          id: 'TICKET-123',
+          subject: 'Payment issue',
+          message: 'I had trouble making a payment...',
+          status: 'resolved',
+          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+    }
+    const response = await apiCall<unknown>('/support/tickets');
+    return extractDataArray<Types.SupportTicket>(response);
   },
 };

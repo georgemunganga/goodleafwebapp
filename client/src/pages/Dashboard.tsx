@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, Wallet, FileText, Calculator, CreditCard, AlertCircle, XCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar, ShieldCheck, Circle, LifeBuoy, User } from "lucide-react";
+import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, ChevronDown, Wallet, FileText, Calculator, CreditCard, AlertCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar, ShieldCheck, Circle, LifeBuoy, User } from "lucide-react";
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
-import { loanService } from "@/lib/api-service";
+import { useUserLoans } from "@/hooks/useLoanQueries";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
 import * as Types from "@/lib/api-types";
 
@@ -47,41 +47,26 @@ interface Recommendation {
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const [isLoading, setIsLoading] = useState(true);
-  const [loans, setLoans] = useState<DisplayLoan[]>([]);
   const [selectedLoanStatus, setSelectedLoanStatus] = useState<DisplayLoanStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
+  const loansQuery = useUserLoans();
+  const isLoading = loansQuery.isLoading;
+  const error = loansQuery.error
+    ? (loansQuery.error instanceof Error
+        ? loansQuery.error.message
+        : (loansQuery.error as { message?: string }).message || 'Failed to load loans. Please try again.')
+    : null;
 
-  // Fetch loans from API
-  useEffect(() => {
-    const fetchLoans = async () => {
-      try {
-        setIsLoading(true);
-        const fetchedLoans = await loanService.getUserLoans();
-        
-        // Map API loan statuses to display statuses
-        const displayLoans: DisplayLoan[] = fetchedLoans.map(loan => ({
-          ...loan,
-          displayStatus: mapLoanStatus(loan.status)
-        }));
-        
-        setLoans(displayLoans);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch loans:', err);
-        setError('Failed to load loans. Please try again.');
-        // Fallback to empty state
-        setLoans([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLoans();
-  }, []);
+  const loans = useMemo(() => {
+    const data = loansQuery.data ?? [];
+    return data.map((loan) => ({
+      ...loan,
+      displayStatus: mapLoanStatus(loan.status),
+    })) as DisplayLoan[];
+  }, [loansQuery.data]);
 
   // Get notification badges
-  const badges = useNotificationBadges(loans);
+  const badges = useNotificationBadges(loansQuery.data ?? []);
 
   // Map API loan status to display status
   function mapLoanStatus(apiStatus: Types.LoanDetails['status']): DisplayLoanStatus {
@@ -115,9 +100,48 @@ export default function Dashboard() {
     return date.toLocaleDateString("en-US", options);
   };
 
+  const toNumberValue = (value?: number | string | null): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim().length > 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const formatCurrency = (value?: number | string | null) => {
+    const numeric = toNumberValue(value);
+    if (numeric === null) return "-";
+    return `K${numeric.toLocaleString()}`;
+  };
+
+  const formatPercentage = (value?: number | string | null) => {
+    const numeric = toNumberValue(value);
+    if (numeric === null) return "-";
+    return `${numeric}%`;
+  };
+
+  const formatLoanType = (value?: string | null) => {
+    if (!value) return "-";
+    return value
+      .toString()
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatTerm = (value?: number | string | null) => {
+    const numeric = toNumberValue(value);
+    if (numeric === null) return "-";
+    return `${numeric} month${numeric === 1 ? "" : "s"}`;
+  };
+
   if (isLoading) {
     return <PageSkeletonLoader />;
   }
+
+  const toggleLoanDetails = (loanId: string) => {
+    setExpandedLoanId((current) => (current === loanId ? null : loanId));
+  };
 
   const displayedLoans = selectedLoanStatus 
     ? loans.filter(loan => loan.displayStatus === selectedLoanStatus)
@@ -325,43 +349,111 @@ export default function Dashboard() {
 
   // Render loan list item
   const renderLoanCard = (loan: DisplayLoan) => {
-    const loanTitle = loan.loanType || loan.loanCategory || "Loan Application";
+    const normalizedLoanType = formatLoanType(loan.loanType);
+    const loanTitle =
+      loan.loanCategory || (normalizedLoanType !== "-" ? normalizedLoanType : "Loan Application");
     const statusMeta = loanStatusConfig[loan.displayStatus] ?? loanStatusConfig.pending_approval;
     const isActive = loan.displayStatus === "active" || loan.displayStatus === "overdue";
     const dateLabel = isActive ? "Next Due" : "Applied";
     const dateValue = isActive ? loan.nextPaymentDate : loan.createdAt;
+    const loanKey = loan.id.toString();
+    const isExpanded = expandedLoanId === loanKey;
+    const detailsId = `loan-details-${loanKey}`;
+    const completedPaid = (() => {
+      const paidAmount = toNumberValue(loan.amountPaid);
+      if (paidAmount !== null && paidAmount > 0) return paidAmount;
+      return toNumberValue(loan.totalRepayment);
+    })();
+    const statusDetails = (() => {
+      switch (loan.displayStatus) {
+        case "active":
+          return [
+            { label: "Installment", value: formatCurrency(loan.monthlyPayment) },
+            { label: "Outstanding", value: formatCurrency(loan.amountRemaining) },
+            { label: "Next Payment", value: formatDate(loan.nextPaymentDate, { month: "short", day: "numeric" }) },
+          ];
+        case "overdue":
+          return [
+            { label: "Installment", value: formatCurrency(loan.monthlyPayment) },
+            { label: "Outstanding", value: formatCurrency(loan.amountRemaining) },
+            { label: "Due Date", value: formatDate(loan.nextPaymentDate, { month: "short", day: "numeric" }) },
+          ];
+        case "completed":
+          return [
+            { label: "Amount Paid", value: formatCurrency(completedPaid) },
+            { label: "Completed On", value: formatDate(loan.maturityDate, { month: "short", day: "numeric" }) },
+          ];
+        default:
+          return [
+            { label: "Submitted On", value: formatDate(loan.createdAt, { month: "short", day: "numeric" }) },
+          ];
+      }
+    })();
+    const detailItems = [
+      { label: "Loan Type", value: formatLoanType(loan.loanType) },
+      { label: "Category", value: loan.loanCategory || "-" },
+      { label: "Repayment Term", value: formatTerm(loan.repaymentMonths) },
+      { label: "Interest Rate", value: formatPercentage(loan.interestRate) },
+      { label: "Total Repayment", value: formatCurrency(loan.totalRepayment) },
+      ...statusDetails,
+    ];
 
     return (
-      <button
+      <div
         key={loan.id}
-        onClick={() => setLocation(`/loans/${loan.id}`)}
-        className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
+        className={`w-full bg-white rounded-2xl shadow-sm border ${isExpanded ? "border-primary/30" : "border-gray-100"}`}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-gray-900 text-base capitalize">{loanTitle}</h3>
-            <p className="text-sm text-gray-500">{loan.loanId}</p>
+        <button
+          type="button"
+          onClick={() => toggleLoanDetails(loanKey)}
+          aria-expanded={isExpanded}
+          aria-controls={detailsId}
+          className="w-full p-4 text-left active:scale-[0.98] transition-transform hover:border-primary/30"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-base capitalize">{loanTitle}</h3>
+              <p className="text-sm text-gray-500">{loan.loanId}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusMeta.badgeClass}`}>
+                {statusMeta.label}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              />
+            </div>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusMeta.badgeClass}`}>
-            {statusMeta.label}
-          </span>
-        </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Amount</p>
-            <p className="font-semibold text-gray-900">
-              K{loan.loanAmount?.toLocaleString()}
-            </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Amount</p>
+              <p className="font-semibold text-gray-900">
+                {formatCurrency(loan.loanAmount)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{dateLabel}</p>
+              <p className="font-semibold text-gray-900">
+                {formatDate(dateValue, { month: "short", day: "numeric" })}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{dateLabel}</p>
-            <p className="font-semibold text-gray-900">
-              {formatDate(dateValue, { month: "short", day: "numeric" })}
-            </p>
+        </button>
+
+        {isExpanded && (
+          <div id={detailsId} className="border-t border-gray-100 px-4 pb-4 pt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {detailItems.map((item) => (
+                <div key={item.label}>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{item.label}</p>
+                  <p className="font-semibold text-gray-900 text-sm">{item.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </button>
+        )}
+      </div>
     );
   };
 

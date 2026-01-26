@@ -17,29 +17,58 @@ export default function ChangePIN() {
   const [currentPIN, setCurrentPIN] = useState("");
   const [newPIN, setNewPIN] = useState("");
   const [confirmPIN, setConfirmPIN] = useState("");
+  const [verificationId, setVerificationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const handleVerifyCurrent = () => {
-    if (currentPIN.length === 6) {
-      setStep("new");
+  const handleVerifyCurrent = async () => {
+    if (currentPIN.length !== 4) return;
+
+    try {
+      setIsVerifying(true);
+      const response = await userService.verifyPIN(currentPIN);
+      if (response?.verificationId) {
+        setVerificationId(response.verificationId);
+        setStep("new");
+      } else {
+        toast.error("Incorrect PIN. Please try again.");
+      }
+    } catch (err: any) {
+      console.error("Failed to verify PIN:", err);
+      toast.error(err.message || "Failed to verify PIN. Please try again.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleSetNewPIN = async () => {
-    if (newPIN !== confirmPIN || newPIN.length !== 6) return;
+    if (newPIN !== confirmPIN || newPIN.length !== 4) return;
+    if (!verificationId) {
+      toast.error("Verification expired. Please verify your current PIN again.");
+      setStep("current");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
-      const response = await userService.changePIN(currentPIN, newPIN);
-      if (response.success) {
-        toast.success(response.message || "PIN changed successfully");
-        setStep("success");
-      } else {
-        toast.error(response.message || "Failed to change PIN");
+      const response = await userService.setNewPIN(verificationId, newPIN, confirmPIN);
+      const success = typeof response?.success === "boolean" ? response.success : true;
+      if (!success) {
+        toast.error(response?.message || "Failed to change PIN");
+        return;
       }
+      toast.success(response?.message || "PIN changed successfully");
+      setStep("success");
     } catch (err: any) {
       console.error("Failed to change PIN:", err);
-      toast.error(err.message || "Failed to change PIN");
+      // If verification expired, go back to current step
+      if (err.message?.toLowerCase().includes("verification")) {
+        toast.error("Verification expired. Please verify your current PIN again.");
+        setStep("current");
+        setVerificationId(null);
+      } else {
+        toast.error(err.message || "Failed to change PIN");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -91,7 +120,7 @@ export default function ChangePIN() {
               <span className="text-base font-semibold">Back</span>
             </button>
             <h1 className="text-2xl font-bold mb-1">Create New PIN</h1>
-            <p className="text-white/70 text-base">Set a 6-digit PIN</p>
+            <p className="text-white/70 text-base">Set a 4-digit PIN</p>
           </div>
         </header>
 
@@ -103,10 +132,11 @@ export default function ChangePIN() {
               <label className="block text-base font-bold text-gray-900 mb-2">New PIN</label>
               <input
                 type="password"
+                inputMode="numeric"
                 value={newPIN}
-                onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
-                placeholder="Enter 6-digit PIN"
-                maxLength={6}
+                onChange={(e) => setNewPIN(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Enter 4-digit PIN"
+                maxLength={4}
                 className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest"
               />
             </div>
@@ -116,10 +146,11 @@ export default function ChangePIN() {
               <label className="block text-base font-bold text-gray-900 mb-2">Confirm PIN</label>
               <input
                 type="password"
+                inputMode="numeric"
                 value={confirmPIN}
-                onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
-                placeholder="Re-enter 6-digit PIN"
-                maxLength={6}
+                onChange={(e) => setConfirmPIN(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="Re-enter 4-digit PIN"
+                maxLength={4}
                 className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest"
               />
             </div>
@@ -127,7 +158,7 @@ export default function ChangePIN() {
             {/* Confirm Button */}
             <Button
               onClick={handleSetNewPIN}
-              disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
+              disabled={newPIN.length !== 4 || confirmPIN.length !== 4 || newPIN !== confirmPIN || isSubmitting}
               className="w-full h-12 bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-bold text-base rounded-xl"
             >
               {isSubmitting ? "Updating..." : "Confirm New PIN"}
@@ -163,10 +194,11 @@ export default function ChangePIN() {
             <label className="block text-base font-bold text-gray-900 mb-2">Current PIN</label>
             <input
               type="password"
+              inputMode="numeric"
               value={currentPIN}
-              onChange={(e) => setCurrentPIN(e.target.value.slice(0, 6))}
-              placeholder="Enter current 6-digit PIN"
-              maxLength={6}
+              onChange={(e) => setCurrentPIN(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              placeholder="Enter current 4-digit PIN"
+              maxLength={4}
               className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base tracking-widest"
             />
           </div>
@@ -174,17 +206,17 @@ export default function ChangePIN() {
           {/* Info Box */}
           <div className="bg-blue-50 rounded-2xl border border-blue-200 p-4">
             <p className="text-sm text-blue-700 font-medium">
-              Your PIN must be 6 digits and should be unique for security.
+              Your PIN must be 4 digits and should be unique for security.
             </p>
           </div>
 
           {/* Continue Button */}
           <Button
             onClick={handleVerifyCurrent}
-            disabled={currentPIN.length !== 6}
+            disabled={currentPIN.length !== 4 || isVerifying}
             className="w-full h-12 bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-bold text-base rounded-xl"
           >
-            Continue
+            {isVerifying ? "Verifying..." : "Continue"}
           </Button>
         </div>
       </main>

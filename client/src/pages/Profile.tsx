@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useLocation } from "wouter";
 import { Lock, Bell, LogOut, ChevronRight, User, Shield, HelpCircle, FileText, Phone, Mail, MapPin, Camera, Edit2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { userService } from "@/lib/api-service";
-import * as Types from "@/lib/api-types";
+import { useMemo } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useUserProfile } from "@/hooks/useUserQueries";
 
 /**
  * Profile Page
@@ -17,27 +16,14 @@ import { useAuthContext } from "@/contexts/AuthContext";
 export default function Profile() {
   const [, setLocation] = useLocation();
   const { logout } = useAuthContext();
-  const [profile, setProfile] = useState<Types.UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setIsLoading(true);
-        const data = await userService.getProfile();
-        setProfile(data);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to fetch profile:", err);
-        setError("Failed to load profile.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, []);
+  const profileQuery = useUserProfile();
+  const profile = profileQuery.data ?? null;
+  const isLoading = profileQuery.isLoading;
+  const error = profileQuery.error
+    ? profileQuery.error instanceof Error
+      ? profileQuery.error.message
+      : "Failed to load profile."
+    : null;
 
   const initials = useMemo(() => {
     if (!profile) return "";

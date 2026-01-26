@@ -20,6 +20,7 @@ export const queryKeys = {
     details: () => [...queryKeys.loans.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.loans.details(), id] as const,
     products: () => [...queryKeys.loans.all, 'products'] as const,
+    config: () => [...queryKeys.loans.all, 'config'] as const,
     offers: () => [...queryKeys.loans.all, 'offers'] as const,
     active: () => [...queryKeys.loans.all, 'active'] as const,
     history: () => [...queryKeys.loans.all, 'history'] as const,
@@ -35,7 +36,7 @@ export const queryKeys = {
   // KYC queries
   kyc: {
     all: ['kyc'] as const,
-    status: () => [...queryKeys.kyc.all, 'status'] as const,
+    status: (userId?: string) => [...queryKeys.kyc.all, 'status', userId ?? 'me'] as const,
     documents: () => [...queryKeys.kyc.all, 'documents'] as const,
   },
 
@@ -43,5 +44,30 @@ export const queryKeys = {
   application: {
     all: ['application'] as const,
     status: (appId: string) => [...queryKeys.application.all, 'status', appId] as const,
+  },
+
+  // User profile queries
+  user: {
+    all: ['user'] as const,
+    profile: (userId?: string) => [...queryKeys.user.all, 'profile', userId ?? 'me'] as const,
+  },
+
+  // Notifications queries
+  notifications: {
+    all: ['notifications'] as const,
+    settings: (userId?: string) => [...queryKeys.notifications.all, 'settings', userId ?? 'me'] as const,
+  },
+
+  // Security queries
+  security: {
+    all: ['security'] as const,
+    settings: (userId?: string) => [...queryKeys.security.all, 'settings', userId ?? 'me'] as const,
+    sessions: (userId?: string) => [...queryKeys.security.all, 'sessions', userId ?? 'me'] as const,
+  },
+
+  // Payment queries
+  payments: {
+    all: ['payments'] as const,
+    history: (loanId: string) => [...queryKeys.payments.all, 'history', loanId] as const,
   },
 };

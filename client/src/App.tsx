@@ -13,6 +13,7 @@ import { QueryProvider } from "./providers/QueryProvider";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { ModalProvider } from "./contexts/ModalContext";
 import { ModalRenderer } from "./components/ModalRenderer";
+import AppLayout from "./components/AppLayout";
 
 // Pages
 import Home from "./pages/Home";
@@ -39,35 +40,45 @@ import PaymentHistory from "./pages/PaymentHistory";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 
+// Helper component that wraps content with both ProtectedRoute and AppLayout
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <AppLayout>{children}</AppLayout>
+    </ProtectedRoute>
+  );
+}
+
 function Router() {
   return (
     <Switch>
+      {/* Public Routes - No AppLayout */}
       <Route path={"/login"} component={Login} />
       <Route path={"/set-pin"} component={SetPin} />
       <Route path={"/forgot-pin"} component={ForgotPIN} />
       <Route path={"/terms"} component={Terms} />
       <Route path={"/privacy"} component={Privacy} />
-      
-      {/* Protected Routes */}
-      <Route path={"/dashboard"} component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path={"/apply"} component={LoanApplication} />
       <Route path={"/apply-success"} component={LoanApplicationSuccess} />
-      <Route path={"/loans"} component={() => <ProtectedRoute><LoanHistory /></ProtectedRoute>} />
-      <Route path={"/loans/:id"} component={() => <ProtectedRoute><LoanDetails /></ProtectedRoute>} />
-      <Route path={"/:id/payment-history"} component={() => <ProtectedRoute><PaymentHistory /></ProtectedRoute>} />
-      <Route path={"/profile"} component={() => <ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path={"/personal-details"} component={() => <ProtectedRoute><PersonalDetails /></ProtectedRoute>} />
-      <Route path={"/change-pin"} component={() => <ProtectedRoute><ChangePIN /></ProtectedRoute>} />
-      <Route path={"/notifications"} component={() => <ProtectedRoute><NotificationsSettings /></ProtectedRoute>} />
-      <Route path={"/security"} component={() => <ProtectedRoute><SecuritySettings /></ProtectedRoute>} />
-      <Route path={"/help"} component={() => <ProtectedRoute><HelpSupport /></ProtectedRoute>} />
-      <Route path={"/check-eligibility"} component={() => <ProtectedRoute><PreEligibilityChecker /></ProtectedRoute>} />
-      <Route path={"/kyc"} component={() => <ProtectedRoute><KYCWorkflow /></ProtectedRoute>} />
-      <Route path={"/repayment"} component={() => <ProtectedRoute><RepaymentSubmission /></ProtectedRoute>} />
-      <Route path={"/early-repayment"} component={() => <ProtectedRoute><EarlyRepaymentCalculator /></ProtectedRoute>} />
-      <Route path={"/restructure"} component={() => <ProtectedRoute><LoanRestructuring /></ProtectedRoute>} />
 
-      <Route path={"/"} component={() => <ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      {/* Protected Routes - With AppLayout (sidebar + bottom nav) */}
+      <Route path={"/dashboard"} component={() => <ProtectedPage><Dashboard /></ProtectedPage>} />
+      <Route path={"/loans"} component={() => <ProtectedPage><LoanHistory /></ProtectedPage>} />
+      <Route path={"/loans/:id"} component={() => <ProtectedPage><LoanDetails /></ProtectedPage>} />
+      <Route path={"/:id/payment-history"} component={() => <ProtectedPage><PaymentHistory /></ProtectedPage>} />
+      <Route path={"/profile"} component={() => <ProtectedPage><Profile /></ProtectedPage>} />
+      <Route path={"/personal-details"} component={() => <ProtectedPage><PersonalDetails /></ProtectedPage>} />
+      <Route path={"/change-pin"} component={() => <ProtectedPage><ChangePIN /></ProtectedPage>} />
+      <Route path={"/notifications"} component={() => <ProtectedPage><NotificationsSettings /></ProtectedPage>} />
+      <Route path={"/security"} component={() => <ProtectedPage><SecuritySettings /></ProtectedPage>} />
+      <Route path={"/help"} component={() => <ProtectedPage><HelpSupport /></ProtectedPage>} />
+      <Route path={"/check-eligibility"} component={() => <ProtectedPage><PreEligibilityChecker /></ProtectedPage>} />
+      <Route path={"/kyc"} component={() => <ProtectedPage><KYCWorkflow /></ProtectedPage>} />
+      <Route path={"/repayment"} component={() => <ProtectedPage><RepaymentSubmission /></ProtectedPage>} />
+      <Route path={"/early-repayment"} component={() => <ProtectedPage><EarlyRepaymentCalculator /></ProtectedPage>} />
+      <Route path={"/restructure"} component={() => <ProtectedPage><LoanRestructuring /></ProtectedPage>} />
+
+      <Route path={"/"} component={() => <ProtectedPage><Dashboard /></ProtectedPage>} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

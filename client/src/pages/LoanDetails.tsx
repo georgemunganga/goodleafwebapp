@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { loanService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
 import { ArrowLeft, Calendar, Check, Clock, Download, TrendingDown } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useLocation, useRoute } from "wouter";
+import { useLoanDetails, useRepaymentSchedule } from "@/hooks/useLoanQueries";
 
 /**
  * Loan Details Page
@@ -17,39 +17,21 @@ export default function LoanDetails() {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/loans/:id");
   const loanId = params?.id;
+  const loanQuery = useLoanDetails(loanId ?? "");
+  const scheduleQuery = useRepaymentSchedule(loanId ?? "");
 
-  const [loan, setLoan] = useState<Types.LoanDetails | null>(null);
-  const [schedule, setSchedule] = useState<Types.RepaymentSchedule[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!loanId) {
-      setIsLoading(false);
-      setError("Loan not found.");
-      return;
+  const loan = (loanQuery.data ?? null) as Types.LoanDetails | null;
+  const schedule = (scheduleQuery.data ?? []) as Types.RepaymentSchedule[];
+  const isLoading = loanQuery.isLoading || scheduleQuery.isLoading;
+  const error = loanQuery.error || scheduleQuery.error;
+  const errorMessage = (() => {
+    if (!error) return null;
+    if (error instanceof Error) return error.message;
+    if (typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+      return (error as any).message as string;
     }
-
-    const fetchLoan = async () => {
-      try {
-        setIsLoading(true);
-        const [loanDetails, repaymentSchedule] = await Promise.all([
-          loanService.getLoanDetails(loanId),
-          loanService.getRepaymentSchedule(loanId),
-        ]);
-        setLoan(loanDetails);
-        setSchedule(repaymentSchedule);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to fetch loan details:", err);
-        setError("Failed to load loan details. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLoan();
-  }, [loanId]);
+    return "Failed to load loan details. Please try again.";
+  })();
 
   const progress = useMemo(() => {
     if (!loan || !loan.loanAmount) return 0;
@@ -64,10 +46,21 @@ export default function LoanDetails() {
     );
   }
 
+  if (!loanId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6">
+        <p className="text-gray-600 mb-4">Loan not found.</p>
+        <Button onClick={() => setLocation("/loans")} className="rounded-xl bg-primary hover:bg-[#256339]">
+          Back to Loans
+        </Button>
+      </div>
+    );
+  }
+
   if (!loan) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6">
-        <p className="text-gray-600 mb-4">{error || "Loan not found."}</p>
+        <p className="text-gray-600 mb-4">{errorMessage || "Loan not found."}</p>
         <Button onClick={() => setLocation("/loans")} className="rounded-xl bg-primary hover:bg-[#256339]">
           Back to Loans
         </Button>

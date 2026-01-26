@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, ChangeEvent } from 'react';
+import { useState, useEffect, useRef, ChangeEvent, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,10 +13,13 @@ import { OTPVerificationModal } from '@/components/OTPVerificationModal';
 import { FormField } from '@/components/FormField';
 import { FormRecoveryModal } from '@/components/FormRecoveryModal';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { authService, loanService } from '@/lib/api-service';
 import * as Types from '@/lib/api-types';
 import { PIN_SCHEMA } from '@/lib/validation-schemas';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { useLoanConfig, useUserLoans } from '@/hooks/useLoanQueries';
+import { queryKeys } from '@/hooks/query-keys';
 import { toast } from 'sonner';
 
 type Step = 1 | 2 | 3;
@@ -97,6 +100,27 @@ const FALLBACK_CONSTRAINTS: ProductConstraints = {
   repaymentCycleName: 'Monthly',
 };
 
+const BLOCKED_APPLICATION_STATUSES: Types.LoanDetails['status'][] = ['submitted', 'pending'];
+
+const parseDateSafe = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatShortDate = (value?: string | null) => {
+  const parsed = parseDateSafe(value);
+  if (!parsed) return '-';
+  return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatCurrency = (value?: number | null) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '-';
+  }
+  return `K${value.toLocaleString()}`;
+};
+
 /**
  * Loan Application - 3-Step Wizard
  * Design: Responsive desktop and mobile layouts
@@ -110,6 +134,7 @@ export default function LoanApplication() {
   const [, setLocation] = useLocation();
   const auth = useAuthContext();
   const { isAuthenticated } = auth;
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [showPin, setShowPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,12 +142,19 @@ export default function LoanApplication() {
   const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [pendingLogin, setPendingLogin] = useState<{ email?: string; phone?: string; pin: string } | null>(null);
-  const [loanConfig, setLoanConfig] = useState<Types.LoanConfigLoanType[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError] = useState<string | null>(null);
+  const loanConfigQuery = useLoanConfig();
   const [recoveryDecisionMade, setRecoveryDecisionMade] = useState(false);
   const [amountRangePulse, setAmountRangePulse] = useState(0);
   const hasInitializedDefaultsRef = useRef(false);
+  const loanConfig = loanConfigQuery.data ?? [];
+  const configLoading = loanConfigQuery.isLoading;
+  const configError = loanConfigQuery.error
+    ? loanConfigQuery.error instanceof Error
+      ? loanConfigQuery.error.message
+      : 'Failed to load loan products. Please try again.'
+    : null;
+  const configErrorMessage =
+    configError ?? (!configLoading && loanConfig.length === 0 ? 'No loan products are available right now.' : null);
 
   // Form persistence
   const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
@@ -256,6 +288,7 @@ export default function LoanApplication() {
     date.setMonth(date.getMonth() + 1);
     return date;
   };
+
 
   const calculateRepayment = (
     principal: number,
@@ -507,26 +540,34 @@ export default function LoanApplication() {
     };
   };
 
-  const fetchLoanConfig = useCallback(async () => {
-    setConfigLoading(true);
-    setConfigError(null);
-    try {
-      const config = await loanService.getLoanConfig();
-      setLoanConfig(config);
-      if (config.length === 0) {
-        setConfigError('No loan products are available right now.');
-      }
-    } catch (error) {
-      console.error('Failed to load loan configuration:', error);
-      setConfigError('Failed to load loan products. Please try again.');
-    } finally {
-      setConfigLoading(false);
-    }
-  }, []);
+  const userLoansQuery = useUserLoans();
+  const applicationCheckLoading = isAuthenticated && userLoansQuery.isLoading;
+  const applicationCheckError = isAuthenticated && userLoansQuery.error
+    ? userLoansQuery.error instanceof Error
+      ? userLoansQuery.error.message
+      : (userLoansQuery.error as { message?: string }).message || 'Unable to confirm your loan status.'
+    : null;
+
+  const existingApplication = useMemo(() => {
+    if (!isAuthenticated) return null;
+    const loans = userLoansQuery.data ?? [];
+    const inProgressLoans = loans.filter((loan) =>
+      BLOCKED_APPLICATION_STATUSES.includes(loan.status),
+    );
+    if (inProgressLoans.length === 0) return null;
+    return [...inProgressLoans].sort((a, b) => {
+      const timeA = parseDateSafe(a.createdAt)?.getTime() ?? 0;
+      const timeB = parseDateSafe(b.createdAt)?.getTime() ?? 0;
+      return timeB - timeA;
+    })[0];
+  }, [isAuthenticated, userLoansQuery.data]);
 
   useEffect(() => {
-    fetchLoanConfig();
-  }, [fetchLoanConfig]);
+    if (existingApplication) {
+      setShowRecoveryModal(false);
+      setRecoveryDecisionMade(true);
+    }
+  }, [existingApplication]);
 
   // Check for saved data on mount
   useEffect(() => {
@@ -566,7 +607,6 @@ export default function LoanApplication() {
 
     const defaultSelection = getDefaultSelection();
     if (!defaultSelection) {
-      setConfigError('No loan products are available right now.');
       return;
     }
 
@@ -697,8 +737,30 @@ export default function LoanApplication() {
   const productContextLabel = [selectedCategory?.name, selectedLoanType?.name].filter(Boolean).join(' • ');
   const nextPaymentDate = getNextPaymentDate(activeConstraints.repaymentCycleName);
   const showLoadingState = configLoading && loanConfig.length === 0;
-  const showErrorState = !showLoadingState && loanConfig.length === 0 && Boolean(configError);
+  const showErrorState = !showLoadingState && loanConfig.length === 0 && Boolean(configErrorMessage);
   const showNoProductsState = !showLoadingState && !showErrorState && availableLoanTypes.length === 0;
+  const showApplyGate =
+    isAuthenticated && (applicationCheckLoading || Boolean(applicationCheckError) || Boolean(existingApplication));
+  const gateTitle = existingApplication
+    ? 'Loan Application Status'
+    : applicationCheckError
+      ? 'Unable to Confirm Status'
+      : 'Checking Loan Status';
+  const gateDescription = existingApplication
+    ? 'You already have a loan application in progress. We will update you once a decision is made.'
+    : applicationCheckError
+      ? 'We could not confirm your current loan status. Please retry or return to your dashboard.'
+      : 'We are verifying whether you have an active loan application.';
+  const applicationStatusLabel =
+    existingApplication?.status === 'submitted' ? 'Submitted' : 'Under Review';
+  const applicationBadgeClass =
+    existingApplication?.status === 'submitted'
+      ? 'bg-amber-100 text-amber-800'
+      : 'bg-blue-100 text-blue-700';
+  const applicationMessage =
+    existingApplication?.status === 'submitted'
+      ? 'Your application is submitted and waiting for review. Complete KYC to speed up approval.'
+      : 'Your application is under review. We will notify you once a decision is made.';
 
   const getAmountStep = (min: number, max: number) => {
     const range = max - min;
@@ -816,8 +878,8 @@ export default function LoanApplication() {
         toast.info('Loading loan products...');
         return;
       }
-      if (configError && loanConfig.length === 0) {
-        toast.error(configError);
+      if (configErrorMessage && loanConfig.length === 0) {
+        toast.error(configErrorMessage);
         return;
       }
 
@@ -879,6 +941,10 @@ export default function LoanApplication() {
     }
   };
 
+  const refreshLoanCache = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.loans.all });
+  };
+
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep((currentStep - 1) as Step);
@@ -934,6 +1000,7 @@ export default function LoanApplication() {
         if (response.success) {
           toast.success('Loan application submitted successfully!');
           clearForm(); // Clear saved form after successful submission
+          refreshLoanCache();
           setLocation('/kyc');
         } else {
           toast.error('Failed to submit application. Please try again.');
@@ -1024,6 +1091,7 @@ export default function LoanApplication() {
           if (registrationHasApplication) {
             toast.success(registerMessage || 'Account created and application submitted!');
             clearForm();
+            refreshLoanCache();
             setLocation('/kyc');
             return;
           }
@@ -1033,10 +1101,12 @@ export default function LoanApplication() {
           if (appResponse.success) {
             toast.success('Account created and application submitted!');
             clearForm(); // Clear saved form after successful submission
+            refreshLoanCache();
             setLocation('/kyc');
           } else {
             toast.error('Application submitted but KYC verification needed.');
             clearForm();
+            refreshLoanCache();
             setLocation('/kyc');
           }
         } catch (error: any) {
@@ -1062,7 +1132,7 @@ export default function LoanApplication() {
     }
 
     if (loanConfig.length === 0) {
-      toast.error(configError || 'Loan products are not available right now.');
+      toast.error(configErrorMessage || 'Loan products are not available right now.');
       return;
     }
 
@@ -1197,7 +1267,107 @@ export default function LoanApplication() {
               </div>
               <span className="text-xl font-bold">Goodleaf</span>
             </div>
-            <ProgressSteps currentStep={currentStep} totalSteps={3} />
+            {showApplyGate ? (
+              <div className="space-y-6 mt-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{gateTitle}</h2>
+                  <p className="text-gray-600">{gateDescription}</p>
+                </div>
+
+                {applicationCheckLoading && (
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 animate-pulse">
+                    Checking your current loan status...
+                  </div>
+                )}
+
+                {applicationCheckError && (
+                  <div className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-5">
+                    <p className="text-sm text-red-700">{applicationCheckError}</p>
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        onClick={() => userLoansQuery.refetch()}
+                        className="flex-1 bg-[#2e7146] hover:bg-[#1d4a2f]"
+                      >
+                        Retry
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setLocation('/dashboard')}
+                        className="flex-1"
+                      >
+                        Dashboard
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {existingApplication && (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-gray-500">Loan ID</p>
+                          <p className="font-semibold text-gray-900">{existingApplication.loanId}</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${applicationBadgeClass}`}>
+                          {applicationStatusLabel}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Requested</p>
+                          <p className="font-semibold text-gray-900">{formatCurrency(existingApplication.loanAmount)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Submitted</p>
+                          <p className="font-semibold text-gray-900">
+                            {formatShortDate(existingApplication.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-900">
+                        {applicationMessage}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <Button
+                        type="button"
+                        onClick={() => setLocation(`/loans/${existingApplication.id}`)}
+                        className="w-full bg-[#2e7146] hover:bg-[#1d4a2f]"
+                      >
+                        View Loan Status
+                      </Button>
+                      {existingApplication.status === 'submitted' ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setLocation('/kyc')}
+                          className="w-full"
+                        >
+                          Complete KYC
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setLocation('/dashboard')}
+                          className="w-full"
+                        >
+                          Back to Dashboard
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <ProgressSteps currentStep={currentStep} totalSteps={3} />
 
             {/* Step 1: Loan Terms */}
             {currentStep === 1 && showLoadingState && (
@@ -1224,14 +1394,14 @@ export default function LoanApplication() {
                 <h2 className="text-2xl font-bold text-gray-900">Loan Products Unavailable</h2>
                 <p className="text-gray-600">We could not load loan products right now.</p>
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  {configError}
+                  {configErrorMessage}
                 </div>
                 <div className="flex gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={handleBack} className="flex-1">
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button type="button" onClick={fetchLoanConfig} className="flex-1 bg-[#2e7146] hover:bg-[#1d4a2f]">
+                  <Button type="button" onClick={() => loanConfigQuery.refetch()} className="flex-1 bg-[#2e7146] hover:bg-[#1d4a2f]">
                     Retry
                   </Button>
                 </div>
@@ -1247,7 +1417,7 @@ export default function LoanApplication() {
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button type="button" onClick={fetchLoanConfig} className="flex-1 bg-[#2e7146] hover:bg-[#1d4a2f]">
+                  <Button type="button" onClick={() => loanConfigQuery.refetch()} className="flex-1 bg-[#2e7146] hover:bg-[#1d4a2f]">
                     Refresh
                   </Button>
                 </div>
@@ -1700,6 +1870,8 @@ export default function LoanApplication() {
                   </Button>
                 </div>
               </form>
+            )}
+              </>
             )}
           </div>
         </div>

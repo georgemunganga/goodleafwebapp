@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowLeft, Phone, Mail, CheckCircle, Lock } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { authService } from "@/lib/api-service";
 import { toast } from "sonner";
@@ -19,23 +19,72 @@ export default function ForgotPIN() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>("method");
   const [method, setMethod] = useState<Method>("phone");
-  const [identifier, setIdentifier] = useState("");
+  // Phone number state (separate country code and number like Login page)
+  const [countryCode, setCountryCode] = useState("+260");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  // Email state
+  const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [newPIN, setNewPIN] = useState("");
   const [confirmPIN, setConfirmPIN] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Clear field error when user types
+  const clearFieldError = useCallback((field: string) => {
+    setFieldErrors(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
+  // Validate phone number (9 digits)
+  const validatePhone = (): boolean => {
+    if (phoneNumber.length !== 9) {
+      setFieldErrors({ phoneNumber: "Phone number must be 9 digits" });
+      return false;
+    }
+    if (!/^\d{9}$/.test(phoneNumber)) {
+      setFieldErrors({ phoneNumber: "Phone number must contain only digits" });
+      return false;
+    }
+    return true;
+  };
+
+  // Validate email
+  const validateEmail = (): boolean => {
+    if (!email.trim()) {
+      setFieldErrors({ email: "Email is required" });
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldErrors({ email: "Invalid email address" });
+      return false;
+    }
+    return true;
+  };
 
   const handleSendCode = async () => {
-    if (!identifier) return;
-    setIsSubmitting(true);
+    setFieldErrors({});
     setError(null);
 
+    // Validate based on method
+    if (method === "phone") {
+      if (!validatePhone()) return;
+    } else {
+      if (!validateEmail()) return;
+    }
+
+    setIsSubmitting(true);
+
     try {
+      const fullPhone = method === "phone" ? `${countryCode}${phoneNumber}` : "";
       const response = await authService.forgotPIN({
-        email: method === "email" ? identifier : "",
-        phone: method === "phone" ? identifier : "",
+        email: method === "email" ? email.trim() : "",
+        phone: fullPhone,
       });
       setVerificationId(response.verificationId);
       setStep("verify");
@@ -198,22 +247,76 @@ export default function ForgotPIN() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block text-sm font-semibold text-gray-900">
-                    {method === "phone" ? "Mobile Number" : "Email Address"}
-                  </label>
-                  <input
-                    type={method === "phone" ? "tel" : "email"}
-                    placeholder={method === "phone" ? "+260 123 456 789" : "john@example.com"}
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                  />
-                </div>
+                {/* Phone Number Input */}
+                {method === "phone" && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Mobile Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        className="px-3 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white"
+                      >
+                        <option value="+260">+260</option>
+                        <option value="+27">+27</option>
+                        <option value="+263">+263</option>
+                        <option value="+265">+265</option>
+                      </select>
+                      <input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "");
+                          setPhoneNumber(value);
+                          clearFieldError("phoneNumber");
+                        }}
+                        placeholder="123456789"
+                        inputMode="numeric"
+                        maxLength={9}
+                        className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 outline-none ${
+                          fieldErrors.phoneNumber
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                            : "border-gray-300 focus:border-primary focus:ring-primary/20"
+                        }`}
+                      />
+                    </div>
+                    {fieldErrors.phoneNumber && (
+                      <p className="text-red-500 text-xs">{fieldErrors.phoneNumber}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Email Input */}
+                {method === "email" && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearFieldError("email");
+                      }}
+                      placeholder="john@example.com"
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none ${
+                        fieldErrors.email
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                          : "border-gray-300 focus:border-primary focus:ring-primary/20"
+                      }`}
+                    />
+                    {fieldErrors.email && (
+                      <p className="text-red-500 text-xs">{fieldErrors.email}</p>
+                    )}
+                  </div>
+                )}
 
                 <Button
                   onClick={handleSendCode}
-                  disabled={!identifier || isSubmitting}
+                  disabled={(method === "phone" ? !phoneNumber : !email) || isSubmitting}
                   className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
                 >
                   {isSubmitting ? "Sending..." : "Send Verification Code"}
@@ -372,22 +475,76 @@ export default function ForgotPIN() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-900">
-                  {method === "phone" ? "Mobile Number" : "Email Address"}
-                </label>
-                <input
-                  type={method === "phone" ? "tel" : "email"}
-                  placeholder={method === "phone" ? "+260 123 456 789" : "john@example.com"}
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-                />
-              </div>
+              {/* Phone Number Input */}
+              {method === "phone" && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">
+                    Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="px-3 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none bg-white text-sm"
+                    >
+                      <option value="+260">+260</option>
+                      <option value="+27">+27</option>
+                      <option value="+263">+263</option>
+                      <option value="+265">+265</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        setPhoneNumber(value);
+                        clearFieldError("phoneNumber");
+                      }}
+                      placeholder="123456789"
+                      inputMode="numeric"
+                      maxLength={9}
+                      className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm ${
+                        fieldErrors.phoneNumber
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                          : "border-gray-300 focus:border-primary focus:ring-primary/20"
+                      }`}
+                    />
+                  </div>
+                  {fieldErrors.phoneNumber && (
+                    <p className="text-red-500 text-xs">{fieldErrors.phoneNumber}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Email Input */}
+              {method === "email" && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError("email");
+                    }}
+                    placeholder="john@example.com"
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm ${
+                      fieldErrors.email
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                        : "border-gray-300 focus:border-primary focus:ring-primary/20"
+                    }`}
+                  />
+                  {fieldErrors.email && (
+                    <p className="text-red-500 text-xs">{fieldErrors.email}</p>
+                  )}
+                </div>
+              )}
 
               <Button
                 onClick={handleSendCode}
-                disabled={!identifier || isSubmitting}
+                disabled={(method === "phone" ? !phoneNumber : !email) || isSubmitting}
                 className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
               >
                 {isSubmitting ? "Sending..." : "Send Verification Code"}

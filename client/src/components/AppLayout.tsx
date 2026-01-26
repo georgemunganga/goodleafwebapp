@@ -1,10 +1,10 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Home, CreditCard, User, LogOut, Calculator, FileText, Settings, HelpCircle } from "lucide-react";
+import { Home, CreditCard, User, LogOut, Calculator, FileText, Settings, HelpCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { loanService } from "@/lib/api-service";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
-import * as Types from "@/lib/api-types";
+import { useUserLoans } from "@/hooks/useLoanQueries";
+import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -20,29 +20,36 @@ interface AppLayoutProps {
  */
 export default function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
-  const [loans, setLoans] = useState<Types.LoanDetails[]>([]);
-  
-  // Fetch loans for notification badges
-  useEffect(() => {
-    const fetchLoans = async () => {
-      try {
-        const fetchedLoans = await loanService.getUserLoans();
-        setLoans(fetchedLoans);
-      } catch (err) {
-        console.error('Failed to fetch loans for notifications:', err);
-      }
-    };
-    fetchLoans();
-  }, []);
-  
+  const { data: loans = [] } = useUserLoans();
   const badges = useNotificationBadges(loans);
+  const { canApply, inProgressLoan } = useLoanApplicationGate();
 
-  const mainNavItems = [
-    { path: "/dashboard", label: "Dashboard", icon: Home },
-    { path: "/loans", label: "My Loans", icon: FileText },
-    { path: "/apply", label: "Apply for Loan", icon: CreditCard },
-    { path: "/check-eligibility", label: "Check Eligibility", icon: Calculator },
-  ];
+  // Conditionally show "Apply for Loan" or "Application Status" based on user's loan status
+  const mainNavItems = useMemo(() => {
+    const baseItems = [
+      { path: "/dashboard", label: "Dashboard", icon: Home },
+      { path: "/loans", label: "My Loans", icon: FileText },
+    ];
+
+    // If user has an in-progress loan, show "Application Status" instead of "Apply"
+    if (!canApply && inProgressLoan) {
+      baseItems.push({
+        path: `/loans/${inProgressLoan.loanId}`,
+        label: "Application Status",
+        icon: Clock,
+      });
+    } else {
+      baseItems.push({
+        path: "/apply",
+        label: "Apply for Loan",
+        icon: CreditCard,
+      });
+    }
+
+    baseItems.push({ path: "/check-eligibility", label: "Check Eligibility", icon: Calculator });
+
+    return baseItems;
+  }, [canApply, inProgressLoan]);
 
   const secondaryNavItems = [
     { path: "/profile", label: "Profile", icon: User },
@@ -97,7 +104,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {mainNavItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
-              const badge = item.path === "/dashboard" ? badges.dashboardBadge : item.path === "/loans" ? badges.loansBadge : 0;
+              const badgeCount = item.path === "/dashboard" ? badges.dashboardBadge : item.path === "/loans" ? badges.loansBadge : 0;
+              const showBadge = badgeCount > 0;
+              const badgeText = badgeCount > 9 ? "9+" : String(badgeCount);
+
               return (
                 <button
                   key={item.path}
@@ -110,9 +120,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.label}</span>
-                  {badge > 0 && (
-                    <span className="ml-auto flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
-                      {Math.min(badge, 9)}
+                  {showBadge && (
+                    <span className={`ml-auto flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold rounded-full ${
+                      active ? "bg-white text-primary" : "bg-red-500 text-white"
+                    }`}>
+                      {badgeText}
                     </span>
                   )}
                 </button>
@@ -128,7 +140,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
               {secondaryNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
-                const badge = item.path === "/profile" ? badges.profileBadge : 0;
+                const badgeCount = item.path === "/profile" ? badges.profileBadge : 0;
+                const showBadge = badgeCount > 0;
+                const badgeText = badgeCount > 9 ? "9+" : String(badgeCount);
+
                 return (
                   <button
                     key={item.path}
@@ -141,9 +156,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   >
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
-                    {badge > 0 && (
-                      <span className="ml-auto flex items-center justify-center w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full">
-                        {Math.min(badge, 9)}
+                    {showBadge && (
+                      <span className={`ml-auto flex items-center justify-center min-w-[22px] h-[22px] px-1.5 text-xs font-bold rounded-full ${
+                        active ? "bg-white text-primary" : "bg-red-500 text-white"
+                      }`}>
+                        {badgeText}
                       </span>
                     )}
                   </button>
@@ -178,25 +195,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {mobileNavItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
+              const badgeCount = item.badge ?? 0;
+              const showBadge = badgeCount > 0;
+              const badgeText = badgeCount > 9 ? "9+" : String(badgeCount);
+
               return (
                 <button
                   key={item.path}
                   onClick={() => setLocation(item.path)}
-                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all relative ${
+                  className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all ${
                     active
                       ? "text-white"
                       : "text-white/60 hover:text-white/80"
                   }`}
                 >
-                  <div className={`p-1.5 rounded-xl transition-all relative ${active ? "bg-white/20" : ""}`}>
+                  <div className={`p-2 rounded-xl transition-all relative ${active ? "bg-white/20" : ""}`}>
                     <Icon className={`w-5 h-5 ${active ? "scale-110" : ""} transition-transform`} />
-                    {item.badge && item.badge > 0 && (
-                      <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-primary">
-                        {Math.min(item.badge, 9)}
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-primary">
+                        {badgeText}
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] font-semibold ${active ? "opacity-100" : "opacity-70"}`}>
+                  <span className={`text-[10px] font-medium ${active ? "opacity-100" : "opacity-70"}`}>
                     {item.label}
                   </span>
                 </button>

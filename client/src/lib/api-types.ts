@@ -62,6 +62,26 @@ export interface ResetPINResponse {
   message: string;
 }
 
+export interface VerifyPinRequest {
+  currentPin: string;
+}
+
+export interface VerifyPinResponse {
+  verificationId: string;
+  expiresIn: number;
+}
+
+export interface SetUserPinRequest {
+  verificationId: string;
+  newPin: string;
+  confirmPin: string;
+}
+
+export interface SetUserPinResponse {
+  success?: boolean;
+  message?: string;
+}
+
 export interface ValidatePinTokenResponse {
   success: boolean;
   message?: string;
@@ -351,6 +371,8 @@ export interface KYCStatus {
 }
 
 // ============ Notifications ============
+export type NotificationFrequency = "daily" | "weekly" | "monthly";
+
 export interface NotificationSettings {
   userId: string;
   emailNotifications: boolean;
@@ -359,7 +381,8 @@ export interface NotificationSettings {
   paymentReminders: boolean;
   applicationUpdates: boolean;
   promotions: boolean;
-  reminderFrequency: "daily" | "weekly" | "monthly";
+  notificationFrequency: NotificationFrequency;
+  frequencyOptions?: NotificationFrequency[];
 }
 
 export interface UpdateNotificationSettingsRequest {
@@ -369,7 +392,7 @@ export interface UpdateNotificationSettingsRequest {
   paymentReminders?: boolean;
   applicationUpdates?: boolean;
   promotions?: boolean;
-  reminderFrequency?: "daily" | "weekly" | "monthly";
+  notificationFrequency?: NotificationFrequency;
 }
 
 // ============ Security ============
@@ -391,6 +414,54 @@ export interface EnableTwoFactorResponse {
   secret?: string;
   qrCode?: string;
   message: string;
+}
+
+export interface DisableTwoFactorResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ActiveSession {
+  id: string;
+  device: string;
+  browser?: string;
+  location: string;
+  ipAddress?: string;
+  lastActive: string;
+  isCurrent: boolean;
+}
+
+export interface SignOutSessionResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface SignOutAllDevicesResponse {
+  success: boolean;
+  message: string;
+  sessionsTerminated: number;
+}
+
+// ============ Support / Contact ============
+export interface ContactSupportRequest {
+  subject: string;
+  message: string;
+  phone?: string;
+}
+
+export interface ContactSupportResponse {
+  success: boolean;
+  ticketId: string;
+  message: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  subject: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ============ Generic API Response ============

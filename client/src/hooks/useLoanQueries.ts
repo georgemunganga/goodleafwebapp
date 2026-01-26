@@ -1,40 +1,62 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { loanService } from '@/lib/api-service';
+import { useAuthContext } from '@/contexts/AuthContext';
+import * as Types from '@/lib/api-types';
 import { queryKeys } from './query-keys';
+import { usePersistentQuery } from './usePersistentQuery';
+import { buildCacheKey } from '@/lib/persisted-cache';
 
 /**
  * Loan Query Hooks
  * Centralized data fetching for loan-related queries with proper caching
  */
 
+// Get all loans for the current user (with local persistence)
+export function useUserLoans() {
+  const { user, isAuthenticated } = useAuthContext();
+  const cacheKey = isAuthenticated ? buildCacheKey('loans', [user?.id ?? 'me']) : undefined;
+
+  return usePersistentQuery({
+    queryKey: queryKeys.loans.list({ userId: user?.id }),
+    queryFn: async () => loanService.getUserLoans(),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes
+    enabled: isAuthenticated,
+    storageKey: cacheKey,
+    persist: Boolean(cacheKey),
+  });
+}
+
 // Get all active loans for the current user
 export function useActiveLoans() {
-  return useQuery({
-    queryKey: queryKeys.loans.active(),
-    queryFn: async () => {
-      const response = await loanService.getUserLoans();
-      // Filter to only active loans
-      return response.filter((loan: any) => 
-        loan.status === 'active' || 
-        loan.status === 'pending_approval' ||
-        loan.status === 'approved_not_disbursed'
-      );
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  const loansQuery = useUserLoans();
+  const activeLoans = useMemo(() => {
+    const loans = loansQuery.data ?? [];
+    return loans.filter((loan) =>
+      loan.status === 'active' ||
+      loan.status === 'pending_approval' ||
+      loan.status === 'approved_not_disbursed'
+    );
+  }, [loansQuery.data]);
+
+  return {
+    ...loansQuery,
+    data: activeLoans,
+  };
 }
 
 // Get loan history (paginated)
 export function useLoanHistory(page = 1, limit = 10) {
-  return useQuery({
-    queryKey: queryKeys.loans.history(),
-    queryFn: async () => {
-      const response = await loanService.getUserLoans();
-      // Return all loans for history
-      return response;
-    },
-    staleTime: 10 * 60 * 1000, // 10 minutes
-  });
+  const loansQuery = useUserLoans();
+  const loanHistory = useMemo(() => {
+    return loansQuery.data ?? [];
+  }, [loansQuery.data]);
+
+  return {
+    ...loansQuery,
+    data: loanHistory,
+  };
 }
 
 // Get specific loan details
@@ -42,11 +64,33 @@ export function useLoanDetails(loanId: string) {
   return useQuery({
     queryKey: queryKeys.loans.detail(loanId),
     queryFn: async () => {
-      const loans = await loanService.getUserLoans();
-      return loans.find((loan: any) => loan.id === loanId);
+      return loanService.getLoanDetails(loanId);
     },
     staleTime: 5 * 60 * 1000,
     enabled: !!loanId, // Only run query if loanId is provided
+  });
+}
+
+// Get repayment schedule for a loan
+export function useRepaymentSchedule(loanId: string) {
+  return useQuery({
+    queryKey: queryKeys.repayment.schedule(loanId),
+    queryFn: async () => {
+      return loanService.getRepaymentSchedule(loanId);
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!loanId,
+  });
+}
+
+// Get available loan config/products
+export function useLoanConfig() {
+  return usePersistentQuery({
+    queryKey: queryKeys.loans.config(),
+    queryFn: async () => loanService.getLoanConfig(),
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 2 * 60 * 60 * 1000, // 2 hours
+    storageKey: buildCacheKey('loan-config'),
   });
 }
 

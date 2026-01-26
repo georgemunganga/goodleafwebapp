@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
 import { useState } from "react";
 import { loanService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
 
 /**
  * Pre-Eligibility Checker Page
@@ -19,6 +20,7 @@ export default function PreEligibilityChecker() {
   const [apiResult, setApiResult] = useState<Types.PreEligibilityResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { canApply, inProgressLoan } = useLoanApplicationGate();
 
   const [formData, setFormData] = useState({
     loanType: "personal",
@@ -100,12 +102,27 @@ export default function PreEligibilityChecker() {
                     <p className="text-sm text-green-800">Interest rate: {apiResult.interestRate}%</p>
                   </div>
                 )}
-                <Button
-                  onClick={() => setLocation("/apply")}
-                  className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
-                >
-                  Start Application
-                </Button>
+                {canApply ? (
+                  <Button
+                    onClick={() => setLocation("/apply")}
+                    className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
+                  >
+                    Start Application
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                      <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                    </div>
+                    <Button
+                      onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                      className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
+                    >
+                      View Application Status
+                    </Button>
+                  </div>
+                )}
               </>
             )}
 
@@ -125,12 +142,27 @@ export default function PreEligibilityChecker() {
                     <p className="text-sm text-amber-800">Interest rate: {apiResult.interestRate}%</p>
                   </div>
                 )}
-                <Button
-                  onClick={() => setLocation("/apply")}
-                  className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
-                >
-                  Continue Application
-                </Button>
+                {canApply ? (
+                  <Button
+                    onClick={() => setLocation("/apply")}
+                    className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
+                  >
+                    Continue Application
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                      <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                    </div>
+                    <Button
+                      onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                      className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
+                    >
+                      View Application Status
+                    </Button>
+                  </div>
+                )}
               </>
             )}
 

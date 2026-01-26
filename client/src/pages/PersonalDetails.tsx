@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { userService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { useUpdateUserProfile, useUserProfile } from "@/hooks/useUserQueries";
 import { ArrowLeft, Edit2, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -15,41 +15,49 @@ import { useLocation } from "wouter";
 export default function PersonalDetails() {
   const [, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const profileQuery = useUserProfile();
+  const updateProfile = useUpdateUserProfile();
+  const isLoading = profileQuery.isLoading;
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Types.UpdateProfileRequest>({});
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setIsLoading(true);
-        const profile = await userService.getProfile();
-        setFormData({
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          email: profile.email,
-          phone: profile.phone,
-          address: profile.address,
-          city: profile.city,
-          country: profile.country,
-        });
-        setError(null);
-      } catch (err) {
-        console.error("Failed to load profile:", err);
-        setError("Failed to load personal details.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (!profileQuery.data || isEditing) return;
+    const profile = profileQuery.data;
+    setFormData({
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+      phone: profile.phone,
+      address: profile.address,
+      city: profile.city,
+      country: profile.country,
+    });
+  }, [profileQuery.data, isEditing]);
 
-    fetchProfile();
-  }, []);
+  const loadError = profileQuery.error
+    ? profileQuery.error instanceof Error
+      ? profileQuery.error.message
+      : "Failed to load personal details."
+    : null;
+  const displayError = error ?? loadError;
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      await userService.updateProfile(formData);
+      const response = await updateProfile.mutateAsync(formData);
+      if (response?.user) {
+        setFormData({
+          firstName: response.user.firstName,
+          lastName: response.user.lastName,
+          email: response.user.email,
+          phone: response.user.phone,
+          address: response.user.address,
+          city: response.user.city,
+          country: response.user.country,
+        });
+      }
       setIsEditing(false);
       setError(null);
     } catch (err) {
@@ -89,9 +97,9 @@ export default function PersonalDetails() {
       {/* Main Content */}
       <main className="flex-1 px-5 py-6 w-full overflow-y-auto">
         <div className="space-y-5">
-          {error && (
+          {displayError && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-              <p className="text-sm text-red-800">{error}</p>
+              <p className="text-sm text-red-800">{displayError}</p>
             </div>
           )}
 
