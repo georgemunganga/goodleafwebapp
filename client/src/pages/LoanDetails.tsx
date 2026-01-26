@@ -68,15 +68,62 @@ export default function LoanDetails() {
     );
   }
 
-  const statusLabel = loan.status === "active"
-    ? "Active"
-    : loan.status === "completed"
-    ? "Completed"
-    : loan.status === "pending"
-    ? "Pending"
-    : loan.status === "rejected"
-    ? "Rejected"
-    : "Defaulted";
+  type LoanStatusMeta = {
+    label: string;
+    badgeClass: string;
+    description: string;
+    actionDescription: string;
+    allowPayment: boolean;
+  };
+
+  const LOAN_STATUS_META: Record<Types.LoanDetails["status"], LoanStatusMeta> = {
+    submitted: {
+      label: "Submitted",
+      badgeClass: "bg-amber-100 text-amber-800",
+      description: "Application submitted. We'll notify you once your loan is approved/disbursed.",
+      actionDescription: "Loan is still being reviewed; no actions are available yet.",
+      allowPayment: false,
+    },
+    pending: {
+      label: "Pending",
+      badgeClass: "bg-blue-100 text-blue-700",
+      description: "Under review—no payments can be made until the loan is disbursed.",
+      actionDescription: "Once approved, you'll be able to make repayments right from this screen.",
+      allowPayment: false,
+    },
+    active: {
+      label: "Active",
+      badgeClass: "bg-green-100 text-green-700",
+      description: "Your loan is active. Monthly payments are due and can be paid now.",
+      actionDescription: "Use the actions below to pay, restructure, or download statements.",
+      allowPayment: true,
+    },
+    completed: {
+      label: "Completed",
+      badgeClass: "bg-gray-100 text-gray-700",
+      description: "This loan has been fully repaid.",
+      actionDescription: "View past payments or download your statements.",
+      allowPayment: false,
+    },
+    rejected: {
+      label: "Rejected",
+      badgeClass: "bg-red-100 text-red-700",
+      description: "This loan application was rejected.",
+      actionDescription: "You can reapply once you resolve any disqualifying issues.",
+      allowPayment: false,
+    },
+    defaulted: {
+      label: "Defaulted",
+      badgeClass: "bg-red-100 text-red-700",
+      description: "This loan is in default. Please reach out to support.",
+      actionDescription: "Contact support to get next steps.",
+      allowPayment: false,
+    },
+  };
+
+  const statusMeta = LOAN_STATUS_META[loan.status];
+  const statusLabel = statusMeta.label;
+  const statusBadgeClass = statusMeta.badgeClass;
 
   const nextPaymentLabel = loan.nextPaymentDate
     ? new Date(loan.nextPaymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -165,17 +212,21 @@ export default function LoanDetails() {
         {/* Next Payment Card */}
         <div className="bg-gradient-to-br from-[#2e7146]/10 to-[#1d4a2f]/10 rounded-2xl border-2 border-primary/20 p-5">
           <p className="text-xs text-gray-600 mb-2 font-semibold">NEXT PAYMENT DUE</p>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.monthlyPayment.toLocaleString()}</p>
               <p className="text-base text-gray-600 font-medium">{nextPaymentLabel}</p>
             </div>
-            <Button
-              onClick={() => setLocation("/repayment")}
-              className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
-            >
-              Pay Now
-            </Button>
+            {statusMeta.allowPayment ? (
+              <Button
+                onClick={() => setLocation("/repayment")}
+                className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
+              >
+                Pay Now
+              </Button>
+            ) : (
+              <p className="text-sm text-gray-600 max-w-xs text-right">{statusMeta.description}</p>
+            )}
           </div>
         </div>
 

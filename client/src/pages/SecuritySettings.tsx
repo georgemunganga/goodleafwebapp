@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { ArrowLeft, Lock, Smartphone, Clock, LogOut, Loader2, Monitor } from "lucide-react";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { securityService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
@@ -36,41 +36,85 @@ function formatRelativeTime(dateString: string): string {
 
 export default function SecuritySettings() {
   const [, setLocation] = useLocation();
+  const { user } = useAuthContext();
+  const userId = user?.id;
+  const securitySettingsQuery = useSecuritySettings();
+  const sessionsQuery = useActiveSessions();
+  const queryClient = useQueryClient();
+
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [sessions, setSessions] = useState<Types.ActiveSession[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving2FA, setIsSaving2FA] = useState(false);
   const [signingOutSession, setSigningOutSession] = useState<string | null>(null);
   const [isSigningOutAll, setIsSigningOutAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Track confirmed server state for rollback
   const serverTwoFARef = useRef<boolean>(false);
+  const errorToastRef = useRef<string | null>(null);
+
+  const isLoading = securitySettingsQuery.isLoading || sessionsQuery.isLoading;
+
+  const securitySettingsKey = useMemo(
+    () => queryKeys.security.settings(userId),
+    [userId],
+  );
+  const securitySessionsKey = useMemo(
+    () => queryKeys.security.sessions(userId),
+    [userId],
+  );
+  const settingsStorageKey = useMemo(
+    () => (userId ? buildCacheKey("security-settings", userId) : undefined),
+    [userId],
+  );
+  const sessionsStorageKey = useMemo(
+    () => (userId ? buildCacheKey("security-sessions", userId) : undefined),
+    [userId],
+  );
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        // Fetch both settings and sessions in parallel
-        const [settings, activeSessions] = await Promise.all([
-          securityService.getSecuritySettings(),
-          securityService.getActiveSessions(),
-        ]);
-        setTwoFAEnabled(settings.twoFactorEnabled);
-        serverTwoFARef.current = settings.twoFactorEnabled;
-        setSessions(activeSessions);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to load security settings:", err);
-        setError("Failed to load security settings.");
-        toast.error("Failed to load security settings");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (!securitySettingsQuery.data) return;
+    setTwoFAEnabled(securitySettingsQuery.data.twoFactorEnabled);
+    serverTwoFARef.current = securitySettingsQuery.data.twoFactorEnabled;
+  }, [securitySettingsQuery.data]);
 
-    fetchData();
-  }, []);
+  useEffect(() => {
+    setSessions(sessionsQuery.data ?? []);
+  }, [sessionsQuery.data]);
+
+  useEffect(() => {
+    const queryError = securitySettingsQuery.error || sessionsQuery.error;
+    if (queryError) {
+      const message = queryError.message || "Failed to load security settings";
+      setError(message);
+      if (errorToastRef.current !== message) {
+        toast.error(message);
+        errorToastRef.current = message;
+      }
+      return;
+    }
+    setError(null);
+    errorToastRef.current = null;
+  }, [securitySettingsQuery.error, sessionsQuery.error]);
+
+  const persistSecuritySettings = useCallback(
+    (next: Types.SecuritySettings) => {
+      queryClient.setQueryData(securitySettingsKey, next);
+      if (settingsStorageKey) {
+        writePersistedCache(settingsStorageKey, next);
+      }
+    },
+    [queryClient, securitySettingsKey, settingsStorageKey],
+  );
+
+  const persistSessions = useCallback(
+    (next: Types.ActiveSession[]) => {
+      queryClient.setQueryData(securitySessionsKey, next);
+      if (sessionsStorageKey) {
+        writePersistedCache(sessionsStorageKey, next);
+      }
+    },
+    [queryClient, securitySessionsKey, sessionsStorageKey],
+  );
 
   const handleTwoFactorToggle = useCallback(async () => {
     if (isLoading || isSaving2FA) return;
@@ -78,67 +122,85 @@ export default function SecuritySettings() {
     const newValue = !twoFAEnabled;
     const previousValue = serverTwoFARef.current;
 
-    // Optimistic update
     setTwoFAEnabled(newValue);
 
     try {
       setIsSaving2FA(true);
 
-      if (newValue) {
-        // Enable 2FA
-        const response = await securityService.enableTwoFactor({ method: "sms" });
-        if (!response.success) {
-          // Rollback
-          setTwoFAEnabled(previousValue);
-          toast.error(response.message || "Failed to enable 2FA");
-          return;
-        }
-        serverTwoFARef.current = true;
-        toast.success("Two-factor authentication enabled");
-      } else {
-        // Disable 2FA
-        const response = await securityService.disableTwoFactor();
-        if (!response.success) {
-          // Rollback
-          setTwoFAEnabled(previousValue);
-          toast.error(response.message || "Failed to disable 2FA");
-          return;
-        }
-        serverTwoFARef.current = false;
-        toast.success("Two-factor authentication disabled");
+      const response = newValue
+        ? await securityService.enableTwoFactor({ method: "sms" })
+        : await securityService.disableTwoFactor();
+
+      if (!response.success) {
+        setTwoFAEnabled(previousValue);
+        toast.error(response.message || "Failed to update two-factor authentication");
+        return;
       }
+
+      serverTwoFARef.current = newValue;
+
+      const fallbackSettings: Types.SecuritySettings = {
+        userId: userId ?? "me",
+        biometricEnabled: false,
+        lastLoginDate: new Date().toISOString(),
+        loginAttempts: 0,
+        accountLocked: false,
+        twoFactorEnabled: newValue,
+      };
+
+      const nextSettings = securitySettingsQuery.data
+        ? { ...securitySettingsQuery.data, twoFactorEnabled: newValue }
+        : fallbackSettings;
+
+      persistSecuritySettings(nextSettings);
+
       setError(null);
+      toast.success(
+        newValue
+          ? "Two-factor authentication enabled"
+          : "Two-factor authentication disabled",
+      );
     } catch (err) {
       console.error("Failed to update 2FA:", err);
-      // Rollback
       setTwoFAEnabled(previousValue);
       toast.error("Failed to update two-factor authentication");
     } finally {
       setIsSaving2FA(false);
     }
-  }, [twoFAEnabled, isLoading, isSaving2FA]);
+  }, [
+    isLoading,
+    isSaving2FA,
+    twoFAEnabled,
+    persistSecuritySettings,
+    securitySettingsQuery.data,
+    userId,
+  ]);
 
-  const handleSignOutSession = useCallback(async (sessionId: string) => {
-    if (signingOutSession || isSigningOutAll) return;
+  const handleSignOutSession = useCallback(
+    async (sessionId: string) => {
+      if (signingOutSession || isSigningOutAll) return;
 
-    try {
-      setSigningOutSession(sessionId);
-      const response = await securityService.signOutSession(sessionId);
+      try {
+        setSigningOutSession(sessionId);
+        const response = await securityService.signOutSession(sessionId);
 
-      if (response.success) {
-        // Remove session from list
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        toast.success("Session terminated");
-      } else {
-        toast.error(response.message || "Failed to terminate session");
+        if (response.success) {
+          const nextSessions = sessions.filter((session) => session.id !== sessionId);
+          setSessions(nextSessions);
+          persistSessions(nextSessions);
+          toast.success("Session terminated");
+        } else {
+          toast.error(response.message || "Failed to terminate session");
+        }
+      } catch (err) {
+        console.error("Failed to sign out session:", err);
+        toast.error("Failed to terminate session");
+      } finally {
+        setSigningOutSession(null);
       }
-    } catch (err) {
-      console.error("Failed to sign out session:", err);
-      toast.error("Failed to terminate session");
-    } finally {
-      setSigningOutSession(null);
-    }
-  }, [signingOutSession, isSigningOutAll]);
+    },
+    [signingOutSession, isSigningOutAll, sessions, persistSessions],
+  );
 
   const handleSignOutAllDevices = useCallback(async () => {
     if (signingOutSession || isSigningOutAll) return;
@@ -148,8 +210,9 @@ export default function SecuritySettings() {
       const response = await securityService.signOutAllDevices();
 
       if (response.success) {
-        // Keep only current session
-        setSessions(prev => prev.filter(s => s.isCurrent));
+        const nextSessions = sessions.filter((session) => session.isCurrent);
+        setSessions(nextSessions);
+        persistSessions(nextSessions);
         toast.success(`${response.sessionsTerminated} session(s) terminated`);
       } else {
         toast.error(response.message || "Failed to terminate sessions");
@@ -160,7 +223,7 @@ export default function SecuritySettings() {
     } finally {
       setIsSigningOutAll(false);
     }
-  }, [signingOutSession, isSigningOutAll]);
+  }, [signingOutSession, isSigningOutAll, sessions, persistSessions]);
 
   const otherSessions = sessions.filter(s => !s.isCurrent);
 

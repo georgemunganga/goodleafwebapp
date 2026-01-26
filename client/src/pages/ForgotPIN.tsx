@@ -1,9 +1,12 @@
 import { useLocation } from "wouter";
 import { ArrowLeft, Phone, Mail, CheckCircle, Lock } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { authService } from "@/lib/api-service";
 import { toast } from "sonner";
+
+const RESEND_COOLDOWN_SECONDS = 10;
+const PIN_LENGTH = 4;
 
 type Step = "method" | "verify" | "reset" | "success";
 type Method = "phone" | "email";
@@ -29,8 +32,10 @@ export default function ForgotPIN() {
   const [confirmPIN, setConfirmPIN] = useState("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   // Clear field error when user types
   const clearFieldError = useCallback((field: string) => {
@@ -42,7 +47,7 @@ export default function ForgotPIN() {
   }, []);
 
   // Validate phone number (9 digits)
-  const validatePhone = (): boolean => {
+  const validatePhone = useCallback((): boolean => {
     if (phoneNumber.length !== 9) {
       setFieldErrors({ phoneNumber: "Phone number must be 9 digits" });
       return false;
@@ -52,10 +57,10 @@ export default function ForgotPIN() {
       return false;
     }
     return true;
-  };
+  }, [phoneNumber]);
 
   // Validate email
-  const validateEmail = (): boolean => {
+  const validateEmail = useCallback((): boolean => {
     if (!email.trim()) {
       setFieldErrors({ email: "Email is required" });
       return false;
@@ -65,17 +70,16 @@ export default function ForgotPIN() {
       return false;
     }
     return true;
-  };
+  }, [email]);
 
-  const handleSendCode = async () => {
+  const sendVerificationCode = useCallback(async () => {
     setFieldErrors({});
     setError(null);
 
-    // Validate based on method
     if (method === "phone") {
-      if (!validatePhone()) return;
+      if (!validatePhone()) return false;
     } else {
-      if (!validateEmail()) return;
+      if (!validateEmail()) return false;
     }
 
     setIsSubmitting(true);
@@ -89,22 +93,64 @@ export default function ForgotPIN() {
       setVerificationId(response.verificationId);
       setStep("verify");
       toast.success("Verification code sent.");
+      setResendCountdown(RESEND_COOLDOWN_SECONDS);
+      return true;
     } catch (err: any) {
       console.error("Failed to request reset code:", err);
       setError(err.message || "Failed to send verification code.");
+      return false;
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [method, countryCode, phoneNumber, email, validatePhone, validateEmail]);
 
-  const handleVerifyCode = () => {
-    if (verificationCode.length === 6) {
-      setStep("reset");
+  const handleSendCode = useCallback(() => {
+    sendVerificationCode();
+  }, [sendVerificationCode]);
+
+  const handleResendCode = useCallback(() => {
+    if (resendCountdown > 0) return;
+    sendVerificationCode();
+  }, [resendCountdown, sendVerificationCode]);
+
+  const isResendDisabled = resendCountdown > 0 || isSubmitting;
+  const resendLabel = resendCountdown > 0 ? `Resend (${resendCountdown}s)` : "Resend";
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timerId = setTimeout(() => {
+      setResendCountdown(prev => Math.max(prev - 1, 0));
+    }, 1000);
+    return () => clearTimeout(timerId);
+  }, [resendCountdown]);
+
+  useEffect(() => {
+    if (step !== "verify" && resendCountdown !== 0) {
+      setResendCountdown(0);
     }
-  };
+  }, [step, resendCountdown]);
+
+  const handleVerifyCode = useCallback(async () => {
+    if (verificationCode.length !== 6 || isVerifyingOtp) return;
+    if (!verificationId) {
+      setError("Missing verification session. Please resend the code.");
+      return;
+    }
+    setError(null);
+    setIsVerifyingOtp(true);
+    try {
+      await authService.verifyOTP({ otpId: verificationId, otp: verificationCode });
+      setStep("reset");
+    } catch (err: any) {
+      console.error("OTP verification failed:", err);
+      setError(err.message || "Invalid verification code.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  }, [verificationCode, verificationId, isVerifyingOtp]);
 
   const handleResetPIN = async () => {
-    if (newPIN !== confirmPIN || newPIN.length !== 6) return;
+    if (newPIN !== confirmPIN || newPIN.length !== PIN_LENGTH) return;
     if (!verificationId) {
       setError("Missing verification session. Please resend the code.");
       return;
@@ -350,15 +396,25 @@ export default function ForgotPIN() {
                     maxLength={6}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest font-mono"
                   />
-                  <p className="text-xs text-gray-500">Didn't receive the code? <button className="text-primary hover:underline">Resend</button></p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    Didn't receive the code?
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={isResendDisabled}
+                      className={`text-primary hover:underline transition ${isResendDisabled ? "opacity-50 cursor-not-allowed hover:underline" : ""}`}
+                    >
+                      {resendLabel}
+                    </button>
+                  </p>
                 </div>
 
                 <Button
                   onClick={handleVerifyCode}
-                  disabled={verificationCode.length !== 6}
+                  disabled={verificationCode.length !== 6 || isVerifyingOtp}
                   className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
                 >
-                  Verify Code
+                  {isVerifyingOtp ? "Verifying..." : "Verify Code"}
                 </Button>
               </div>
             )}
@@ -376,17 +432,17 @@ export default function ForgotPIN() {
 
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Create New PIN</h3>
-                  <p className="text-gray-600 text-sm">Set a 6-digit PIN for your account</p>
+                  <p className="text-gray-600 text-sm">Set a 4-digit PIN for your account</p>
                 </div>
 
                 <div className="space-y-3">
                   <label className="block text-sm font-semibold text-gray-900">New PIN</label>
                   <input
                     type="password"
-                    placeholder="••••••"
+                    placeholder="••••"
                     value={newPIN}
-                    onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
-                    maxLength={6}
+                    onChange={(e) => setNewPIN(e.target.value.slice(0, PIN_LENGTH))}
+                    maxLength={PIN_LENGTH}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
                   />
                 </div>
@@ -395,10 +451,10 @@ export default function ForgotPIN() {
                   <label className="block text-sm font-semibold text-gray-900">Confirm PIN</label>
                   <input
                     type="password"
-                    placeholder="••••••"
+                    placeholder="••••"
                     value={confirmPIN}
-                    onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
-                    maxLength={6}
+                    onChange={(e) => setConfirmPIN(e.target.value.slice(0, PIN_LENGTH))}
+                    maxLength={PIN_LENGTH}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
                   />
                 </div>
@@ -409,7 +465,7 @@ export default function ForgotPIN() {
 
                 <Button
                   onClick={handleResetPIN}
-                  disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
+                  disabled={newPIN.length !== PIN_LENGTH || confirmPIN.length !== PIN_LENGTH || newPIN !== confirmPIN || isSubmitting}
                   className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
                 >
                   {isSubmitting ? "Resetting..." : "Reset PIN"}
@@ -559,25 +615,35 @@ export default function ForgotPIN() {
                 <p className="text-gray-600">We sent a 6-digit code to your {method}</p>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-900">Verification Code</label>
-                <input
-                  type="text"
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest font-mono"
-                />
-                <p className="text-xs text-gray-500">Didn't receive the code? <button className="text-primary hover:underline">Resend</button></p>
-              </div>
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">Verification Code</label>
+                  <input
+                    type="text"
+                    placeholder="000000"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
+                    maxLength={6}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest font-mono"
+                  />
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    Didn't receive the code?
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={isResendDisabled}
+                      className={`text-primary hover:underline transition ${isResendDisabled ? "opacity-50 cursor-not-allowed hover:underline" : ""}`}
+                    >
+                      {resendLabel}
+                    </button>
+                  </p>
+                </div>
 
               <Button
                 onClick={handleVerifyCode}
-                disabled={verificationCode.length !== 6}
+                disabled={verificationCode.length !== 6 || isVerifyingOtp}
                 className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
               >
-                Verify Code
+                {isVerifyingOtp ? "Verifying..." : "Verify Code"}
               </Button>
             </div>
           )}
@@ -586,32 +652,32 @@ export default function ForgotPIN() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Create New PIN</h2>
-                <p className="text-gray-600">Set a 6-digit PIN for your account</p>
+                <p className="text-gray-600">Set a 4-digit PIN for your account</p>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-900">New PIN</label>
-                <input
-                  type="password"
-                  placeholder="••••••"
-                  value={newPIN}
-                  onChange={(e) => setNewPIN(e.target.value.slice(0, 6))}
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
-                />
-              </div>
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">New PIN</label>
+                  <input
+                    type="password"
+                    placeholder="••••"
+                    value={newPIN}
+                    onChange={(e) => setNewPIN(e.target.value.slice(0, PIN_LENGTH))}
+                    maxLength={PIN_LENGTH}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                  />
+                </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-900">Confirm PIN</label>
-                <input
-                  type="password"
-                  placeholder="••••••"
-                  value={confirmPIN}
-                  onChange={(e) => setConfirmPIN(e.target.value.slice(0, 6))}
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
-                />
-              </div>
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-900">Confirm PIN</label>
+                  <input
+                    type="password"
+                    placeholder="••••"
+                    value={confirmPIN}
+                    onChange={(e) => setConfirmPIN(e.target.value.slice(0, PIN_LENGTH))}
+                    maxLength={PIN_LENGTH}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-2xl tracking-widest"
+                  />
+                </div>
 
               {newPIN && confirmPIN && newPIN !== confirmPIN && (
                 <p className="text-sm text-red-500">PINs do not match</p>
@@ -619,7 +685,7 @@ export default function ForgotPIN() {
 
               <Button
                 onClick={handleResetPIN}
-                disabled={newPIN.length !== 6 || confirmPIN.length !== 6 || newPIN !== confirmPIN || isSubmitting}
+                disabled={newPIN.length !== PIN_LENGTH || confirmPIN.length !== PIN_LENGTH || newPIN !== confirmPIN || isSubmitting}
                 className="w-full bg-primary hover:bg-[#256339] disabled:bg-gray-300 text-white font-semibold py-3 rounded-lg"
               >
                 {isSubmitting ? "Resetting..." : "Reset PIN"}
