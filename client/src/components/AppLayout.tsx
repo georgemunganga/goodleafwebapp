@@ -36,7 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     // If user has an in-progress loan, show "Application Status" instead of "Apply"
     if (!canApply && inProgressLoan) {
       baseItems.push({
-        path: `/loans/${inProgressLoan.loanId}`,
+        path: `/loans/${inProgressLoan.id}`,
         label: "Application Status",
         icon: Clock,
       });

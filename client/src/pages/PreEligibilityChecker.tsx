@@ -116,7 +116,7 @@ export default function PreEligibilityChecker() {
                       <p className="text-sm text-amber-800">You have a loan application in progress</p>
                     </div>
                     <Button
-                      onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                      onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                       className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
                     >
                       View Application Status
@@ -156,7 +156,7 @@ export default function PreEligibilityChecker() {
                       <p className="text-sm text-amber-800">You have a loan application in progress</p>
                     </div>
                     <Button
-                      onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                      onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                       className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
                     >
                       View Application Status

@@ -265,7 +265,7 @@ export default function LoanHistory() {
                   <p className="text-sm text-amber-800">You have a loan application in progress</p>
                 </div>
                 <Button
-                  onClick={() => setLocation(`/loans/${inProgressLoan?.loanId}`)}
+                  onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                   className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6 text-base"
                 >
                   View Application Status
