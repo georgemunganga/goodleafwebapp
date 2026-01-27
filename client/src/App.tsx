@@ -36,6 +36,7 @@ import ChangePIN from "./pages/ChangePIN";
 import NotificationsSettings from "./pages/NotificationsSettings";
 import SecuritySettings from "./pages/SecuritySettings";
 import HelpSupport from "./pages/HelpSupport";
+import Settings from "./pages/Settings";
 import PaymentHistory from "./pages/PaymentHistory";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
@@ -70,6 +71,7 @@ function Router() {
       <Route path={"/personal-details"} component={() => <ProtectedPage><PersonalDetails /></ProtectedPage>} />
       <Route path={"/change-pin"} component={() => <ProtectedPage><ChangePIN /></ProtectedPage>} />
       <Route path={"/notifications"} component={() => <ProtectedPage><NotificationsSettings /></ProtectedPage>} />
+      <Route path={"/settings"} component={() => <ProtectedPage><Settings /></ProtectedPage>} />
       <Route path={"/security"} component={() => <ProtectedPage><SecuritySettings /></ProtectedPage>} />
       <Route path={"/help"} component={() => <ProtectedPage><HelpSupport /></ProtectedPage>} />
       <Route path={"/check-eligibility"} component={() => <ProtectedPage><PreEligibilityChecker /></ProtectedPage>} />

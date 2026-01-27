@@ -1,15 +1,28 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Upload, ChevronLeft, ChevronRight, CheckCircle2, FileText, Check } from "lucide-react";
+import { Upload, ChevronLeft, ChevronRight, CheckCircle2, FileText, Check, AlertCircle, RefreshCw, FileCheck } from "lucide-react";
 import { FormRecoveryModal } from "@/components/FormRecoveryModal";
 import { useFormPersistence } from "@/hooks/useFormPersistence";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { kycService } from "@/lib/api-service";
+import { useUserLoans } from "@/hooks/useLoanQueries";
 import * as Types from "@/lib/api-types";
+import { toast } from "sonner";
 
 type KYCStep = 1 | 2;
+
+// Loan statuses that require/allow KYC submission
+const KYC_REQUIRED_STATUSES: Types.LoanDetails["status"][] = ["submitted", "pending"];
+
+/**
+ * Backend KYC contract notes (app/Http/Controllers/Api/V1/KycController.php:13-116):
+ * - POST /kyc/upload is the single submit/resubmit endpoint; it stores/overwrites documents via UserFile::updateOrCreate so the UI decides when to surface the upload flow (e.g., only when a loan application is in play or when resubmission has been re-enabled).
+ * - GET /kyc/status reports the required document presence + status (completed only once all required types exist) along with document metadata (id/type/status/uploadedAt) and the most recent verificationDate, but it currently omits URL links even though uploads return them.
+ * - Because there is no backend toggle/delete endpoint, treat KYC as a client-driven CRUD: submit when needed, read the last submission via status, and update by calling /kyc/upload again whenever the loan flow reactivates the upload prompt.
+ * - If we need to expose existing files before another upload, the backend would need to add Storage::disk('public')->url($document->path) to the status payload so the client can show links while still resubmitting through /kyc/upload.
+ */
 
 /**
  * KYC Workflow Page
@@ -20,12 +33,50 @@ type KYCStep = 1 | 2;
 export default function KYCWorkflow() {
   const [, setLocation] = useLocation();
   const { user } = useAuthContext();
+  const { data: loans = [], isLoading: isLoadingLoans } = useUserLoans();
   const [currentStep, setCurrentStep] = useState<KYCStep>(1);
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
+  const [kycStatus, setKycStatus] = useState<Types.KYCStatus | null>(null);
+  const [isLoadingKyc, setIsLoadingKyc] = useState(true);
+
+  // Check if user has a loan that requires KYC
+  const loanRequiringKyc = loans.find((loan) => KYC_REQUIRED_STATUSES.includes(loan.status));
+  const hasLoanRequiringKyc = Boolean(loanRequiringKyc);
+
+  // Fetch KYC status on mount
+  const fetchKycStatus = useCallback(async () => {
+    setIsLoadingKyc(true);
+    try {
+      const status = await kycService.getKYCStatus();
+      setKycStatus(status);
+      // Pre-populate uploaded docs from KYC status
+      if (status.documents && status.documents.length > 0) {
+        const docTypeToName: Record<string, string> = {
+          "id": "National ID or Passport",
+          "proof_of_income": "3 Months Payslip",
+          "utility_bill": "Proof of Address",
+          "bank_statement": "Bank Statement"
+        };
+        const existingDocs = status.documents
+          .filter(d => d.status !== "rejected")
+          .map(d => docTypeToName[d.type] || d.type)
+          .filter(Boolean);
+        setUploadedDocs(existingDocs);
+      }
+    } catch (err) {
+      console.error("Failed to fetch KYC status:", err);
+    } finally {
+      setIsLoadingKyc(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchKycStatus();
+  }, [fetchKycStatus]);
 
   // Form persistence
   const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
@@ -129,8 +180,74 @@ export default function KYCWorkflow() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     clearForm(); // Clear saved form after successful submission
+    toast.success("KYC documents submitted successfully!");
     setLocation("/dashboard");
   };
+
+  // Loading state
+  if (isLoadingLoans || isLoadingKyc) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mb-4"></div>
+        <p className="text-slate-600">Loading...</p>
+      </div>
+    );
+  }
+
+  // No loan application submitted - show info message
+  if (!hasLoanRequiringKyc) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
+          <div className="flex items-center h-14 px-4">
+            <button
+              onClick={() => setLocation("/dashboard")}
+              className="w-10 h-10 flex items-center justify-center -ml-2"
+            >
+              <ChevronLeft className="w-6 h-6 text-slate-700" />
+            </button>
+            <h1 className="flex-1 text-center font-bold text-slate-900">
+              KYC Verification
+            </h1>
+            <div className="w-10"></div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 py-8 flex flex-col items-center justify-center">
+          <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center max-w-md">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">No Active Application</h2>
+            <p className="text-slate-600 mb-6">
+              KYC verification is required when you submit a loan application. You don't have any pending applications that need KYC documents.
+            </p>
+            {kycStatus && kycStatus.status === "completed" && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-2 text-green-800">
+                  <FileCheck className="w-5 h-5" />
+                  <span className="font-medium">Previous KYC documents on file</span>
+                </div>
+                <p className="text-sm text-green-700 mt-1">
+                  Your documents will be used for future applications.
+                </p>
+              </div>
+            )}
+            <Button
+              onClick={() => setLocation("/apply")}
+              className="w-full rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-12"
+            >
+              Apply for a Loan
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // KYC already completed - show documents with update option
+  const hasCompletedKyc = kycStatus?.status === "completed";
+  const hasExistingDocs = kycStatus?.documents && kycStatus.documents.length > 0;
 
   const handleRecoveryResume = () => {
     const savedData = restoreForm();

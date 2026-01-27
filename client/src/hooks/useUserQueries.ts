@@ -8,7 +8,7 @@ import { usePersistentQuery } from './usePersistentQuery';
 
 const getUserCacheKey = (namespace: string, userId?: string | null) => {
   if (!userId) return undefined;
-  return buildCacheKey(namespace, userId);
+  return buildCacheKey(namespace, [userId]);
 };
 
 export function useUserProfile() {

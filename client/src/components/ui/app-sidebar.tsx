@@ -19,8 +19,8 @@ const mainNavItems: NavItem[] = [
 
 const secondaryNavItems: NavItem[] = [
   { icon: User, label: "Profile", path: "/profile" },
-  { icon: Settings, label: "Settings", path: "/settings", placeholder: true },
-  { icon: HelpCircle, label: "Help & Support", path: "/help", placeholder: true },
+  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: HelpCircle, label: "Help & Support", path: "/help" },
 ];
 
 export function AppSidebar() {

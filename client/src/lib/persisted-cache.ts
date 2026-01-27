@@ -21,10 +21,12 @@ const normalizePart = (part: string | number | null | undefined) => {
 
 export const buildCacheKey = (
   namespace: string,
-  parts: Array<string | number | null | undefined> = [],
+  parts: Array<string | number | null | undefined> | string | number | null | undefined = [],
+  ...restParts: Array<string | number | null | undefined>
 ) => {
   const normalizedNamespace = normalizePart(namespace) || 'global';
-  const normalizedParts = parts.map(normalizePart).filter((part) => part.length > 0);
+  const mergedParts = Array.isArray(parts) ? parts : [parts, ...restParts];
+  const normalizedParts = mergedParts.map(normalizePart).filter((part) => part.length > 0);
   return [CACHE_PREFIX, normalizedNamespace, ...normalizedParts].join(':');
 };
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
 import { useUserLoans } from "@/hooks/useLoanQueries";
 import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,6 +24,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { data: loans = [] } = useUserLoans();
   const badges = useNotificationBadges(loans);
   const { canApply, inProgressLoan } = useLoanApplicationGate();
+  const { logout } = useAuthContext();
 
   // Conditionally show "Apply for Loan" or "Application Status" based on user's loan status
   const mainNavItems = useMemo(() => {
@@ -53,8 +55,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const secondaryNavItems = [
     { path: "/profile", label: "Profile", icon: User },
-    { path: "/settings", label: "Settings", icon: Settings, placeholder: true },
-    { path: "/help", label: "Help & Support", icon: HelpCircle, placeholder: true },
+    { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/help", label: "Help & Support", icon: HelpCircle },
   ];
 
   const mobileNavItems = [
@@ -173,7 +175,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {/* Logout */}
         <div className="p-4 border-t border-gray-100">
           <button
-            onClick={() => setLocation("/login")}
+            onClick={() => {
+              logout();
+              setLocation("/login");
+            }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-red-500 hover:bg-red-50 transition-colors"
           >
             <LogOut className="w-5 h-5" />
