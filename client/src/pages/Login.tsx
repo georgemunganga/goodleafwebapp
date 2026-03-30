@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Mail, Phone, Eye, EyeOff } from "lucide-react";
+import { Mail, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { ButtonLoader } from "@/components/ui/loading-spinner";
@@ -54,9 +54,7 @@ export default function Login() {
   const hasPrefilledEmailRef = useRef(false);
 
   // Form state - simple useState
-  const [identifierType, setIdentifierType] = useState<"phone" | "email">("phone");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [countryCode, setCountryCode] = useState("+260");
+  const [identifierType, setIdentifierType] = useState<"phone" | "email">("email");
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
 
@@ -97,8 +95,8 @@ export default function Login() {
   const validateForm = (): FieldErrors => {
     const result = LoginSchema.safeParse({
       identifierType,
-      phoneNumber,
-      countryCode,
+      phoneNumber: "",
+      countryCode: "",
       email,
       pin,
     });
@@ -133,9 +131,7 @@ export default function Login() {
     setErrors({});
 
     try {
-      const loginPayload = identifierType === "phone"
-        ? { phone: `${countryCode}${phoneNumber}`, pin }
-        : { email, pin };
+      const loginPayload = { email, pin };
 
       const response = await auth.login(loginPayload);
 
@@ -162,12 +158,6 @@ export default function Login() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Switch identifier type
-  const switchIdentifierType = (type: "phone" | "email") => {
-    setIdentifierType(type);
-    setErrors({});
   };
 
   return (
@@ -234,8 +224,8 @@ export default function Login() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Identifier Type Toggle */}
-              <div className="flex gap-2 lg:gap-3 p-1 bg-gray-100 rounded-lg lg:rounded-xl">
+              {/* Identifier Type Toggle - Disabled, email only */}
+              {/* <div className="flex gap-2 lg:gap-3 p-1 bg-gray-100 rounded-lg lg:rounded-xl">
                 <button
                   type="button"
                   onClick={() => switchIdentifierType("phone")}
@@ -260,80 +250,32 @@ export default function Login() {
                   <Mail className="w-4 h-4 inline mr-2" />
                   Email
                 </button>
-              </div>
-
-              {/* Phone Number Input */}
-              {identifierType === "phone" && (
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Mobile Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => {
-                        setCountryCode(e.target.value);
-                        clearError("countryCode");
-                      }}
-                      className="px-3 py-3 border border-gray-300 rounded-lg focus:border-[#2e7146] focus:ring-2 focus:ring-[#2e7146]/20 outline-none bg-white text-sm lg:text-base"
-                    >
-                      <option value="+260">+260</option>
-                      <option value="+27">+27</option>
-                      <option value="+263">+263</option>
-                      <option value="+265">+265</option>
-                    </select>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => {
-                        // Only allow digits
-                        const value = e.target.value.replace(/\D/g, "");
-                        setPhoneNumber(value);
-                        clearError("phoneNumber");
-                      }}
-                      placeholder="123456789"
-                      inputMode="numeric"
-                      maxLength={9}
-                      autoComplete="tel"
-                      className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm lg:text-base ${
-                        errors.phoneNumber
-                          ? "border-red-500 focus:border-red-500 focus:ring-red-200"
-                          : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
-                      }`}
-                    />
-                  </div>
-                  {errors.phoneNumber && (
-                    <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>
-                  )}
-                </div>
-              )}
+              </div> */}
 
               {/* Email Input */}
-              {identifierType === "email" && (
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      clearError("email");
-                    }}
-                    placeholder="john@example.com"
-                    autoComplete="email"
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm lg:text-base ${
-                      errors.email
-                        ? "border-red-500 focus:border-red-500 focus:ring-red-200"
-                        : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
-                    }`}
-                  />
-                  {errors.email && (
-                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearError("email");
+                  }}
+                  placeholder="john@example.com"
+                  autoComplete="email"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 outline-none text-sm lg:text-base ${
+                    errors.email
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-300 focus:border-[#2e7146] focus:ring-[#2e7146]/20"
+                  }`}
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                )}
+              </div>
 
               {/* PIN Input */}
               <div className="space-y-1">

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Mail, Lock, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -17,10 +17,9 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [identifier, setIdentifier] = useState("");
   const [pin, setPin] = useState("");
-  const [identifierType, setIdentifierType] = useState<"email" | "phone">("phone");
+  const [identifierType, setIdentifierType] = useState<"email" | "phone">("email");
   const [showPin, setShowPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [countryCode, setCountryCode] = useState("+260");
 
   const { login } = useAuth();
 
@@ -29,10 +28,9 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const email = identifierType === "email" ? identifier : undefined;
-      const phone = identifierType === "phone" ? `${countryCode}${identifier}` : undefined;
+      const email = identifier;
 
-      await login({ email, phone, password: pin });
+      await login({ email, password: pin });
 
       // Show success message
       toast.success('Login successful!');
@@ -74,8 +72,8 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Identifier Type Toggle */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+            {/* Identifier Type Toggle - Disabled, email only */}
+            {/* <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
               <button
                 type="button"
                 onClick={() => setIdentifierType("phone")}
@@ -98,53 +96,26 @@ export default function Login() {
               >
                 Email
               </button>
-            </div>
+            </div> */}
 
             {/* Identifier Input */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                {identifierType === "email" ? "Email ID" : "Mobile Number"}
+                Email ID
               </label>
-              
-              {identifierType === "phone" ? (
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="appearance-none w-24 px-3 py-3.5 border border-gray-300 rounded-xl bg-white text-gray-900 font-medium focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none pr-8"
-                    >
-                      <option value="+260">+260</option>
-                      <option value="+27">+27</option>
-                      <option value="+263">+263</option>
-                      <option value="+265">+265</option>
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-                  <input
-                    type="tel"
-                    placeholder="123456789"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ""))}
-                    className="flex-1 px-4 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-                    required
-                  />
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Mail className="w-5 h-5" />
                 </div>
-              ) : (
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    <Mail className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
-                    required
-                  />
-                </div>
-              )}
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-base"
+                  required
+                />
+              </div>
             </div>
 
             {/* PIN Input */}
