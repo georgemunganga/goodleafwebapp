@@ -5,14 +5,15 @@ import { useMemo, useState } from "react";
 import { ListSkeletonLoader } from "@/components/ui/skeleton-loader";
 import { useUserLoans } from "@/hooks/useLoanQueries";
 import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
-import * as Types from "@/lib/api-types";
+import { getLoanHistoryStatusBucket, getLoanStatusLabel } from "@/lib/loan-status";
 
 interface Loan {
   id: string;
   reference: string;
   type: string;
   amount: number;
-  status: "approved" | "repaid" | "rejected" | "pending";
+  status: "active" | "repaid" | "rejected" | "pending";
+  statusLabel: string;
   date: string;
   outstanding?: number;
   progress?: number;
@@ -44,34 +45,20 @@ export default function LoanHistory() {
     return fetchedLoans.map((loan) => {
       const progress = loan.loanAmount > 0 ? Math.round((loan.amountPaid / loan.loanAmount) * 100) : 0;
       const loanTypeLabel = loan.loanType === "business" ? "Business Loan" : "Personal Loan";
+      const mappedStatus = getLoanHistoryStatusBucket(loan.status);
       return {
         id: loan.id,
         reference: loan.loanId,
         type: loanTypeLabel,
         amount: loan.loanAmount,
-        status: mapLoanStatus(loan.status),
+        status: mappedStatus,
+        statusLabel: getLoanStatusLabel(loan.status),
         date: new Date(loan.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         outstanding: loan.amountRemaining,
         progress,
       } as Loan;
     });
   }, [loansQuery.data]);
-
-  function mapLoanStatus(status: Types.LoanDetails["status"]): Loan["status"] {
-    switch (status) {
-      case "active":
-        return "approved";
-      case "completed":
-        return "repaid";
-      case "pending":
-        return "pending";
-      case "rejected":
-      case "defaulted":
-        return "rejected";
-      default:
-        return "pending";
-    }
-  }
 
   const filteredLoans = loans.filter(loan => {
     const matchesSearch = 
@@ -85,7 +72,7 @@ export default function LoanHistory() {
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case "approved":
+      case "active":
         return "bg-green-100 text-green-700";
       case "repaid":
         return "bg-blue-100 text-blue-700";
@@ -100,7 +87,7 @@ export default function LoanHistory() {
 
   const statusFilters = [
     { value: "all", label: "All" },
-    { value: "approved", label: "Active" },
+    { value: "active", label: "Active" },
     { value: "repaid", label: "Repaid" },
     { value: "pending", label: "Pending" },
     { value: "rejected", label: "Rejected" }
@@ -199,7 +186,7 @@ export default function LoanHistory() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${getStatusStyle(loan.status)}`}>
-                      {loan.status === "approved" ? "Active" : loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                      {loan.statusLabel}
                     </span>
                     <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   </div>

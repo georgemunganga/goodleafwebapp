@@ -5,6 +5,12 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import * as Types from '@/lib/api-types';
+import { authService } from '@/lib/api-service';
+
+const isLoginResponse = (
+  response: Types.LoginResponse | Types.LoginOTPResponse
+): response is Types.LoginResponse =>
+  'token' in response && typeof response.token === 'string' && 'user' in response;
 
 interface UseApiState<T> {
   data: T | null;
@@ -128,11 +134,10 @@ export function useAuth() {
       setLoading(true);
       setError(null);
       try {
-        const { authService } = await import('@/lib/api-service');
         const response = await authService.login(request);
-        if ('token' in response && response.token) {
+        if (isLoginResponse(response)) {
           localStorage.setItem('authToken', response.token);
-          localStorage.setItem('refreshToken', response.refreshToken);
+          localStorage.setItem('refreshToken', response.refreshToken || response.token);
           localStorage.setItem('user', JSON.stringify(response.user));
           setUser(response.user);
         }
@@ -153,7 +158,6 @@ export function useAuth() {
   );
 
   const logout = useCallback(() => {
-    const { authService } = require('@/lib/api-service');
     authService.logout();
     localStorage.removeItem('user');
     setUser(null);

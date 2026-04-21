@@ -5,15 +5,66 @@
  */
 
 import * as Types from './api-types';
-import { apiCall, apiCallFormData } from './api-config';
+import { apiCall, apiCallFormData, apiConfig } from './api-config';
 
 const USAGE_DEMO = import.meta.env.VITE_USAGE_DEMO === 'true';
+let demoUserProfile: Types.UserProfile = {
+  id: 'user-123',
+  firstName: 'John',
+  lastName: 'Doe',
+  email: 'john@example.com',
+  phone: '+260123456789',
+  dateOfBirth: '1990-01-15',
+  address: '123 Main Street',
+  city: 'Lusaka',
+  country: 'Zambia',
+  idNumber: 'ZM123456789',
+  idType: 'National ID',
+  avatar: undefined,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const getApiOrigin = () => {
+  try {
+    return new URL(apiConfig.baseUrl).origin;
+  } catch {
+    return '';
+  }
+};
+
+const resolveAssetUrl = (value?: string | null) => {
+  if (!value) return value ?? undefined;
+  if (value.startsWith('data:')) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`;
+  const apiOrigin = getApiOrigin();
+  if (!apiOrigin) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath.startsWith('/storage/') || normalizedPath.startsWith('/public/storage/')) {
+    return `${apiOrigin}${normalizedPath}`;
+  }
+
+  return `${apiOrigin}${normalizedPath}`;
+};
 
 const normalizeAuthUser = (user: Types.LoginResponse['user']) => {
   const nameFromParts = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
   const normalizedName = user.name?.trim() || nameFromParts || undefined;
-  return { ...user, name: normalizedName };
+  return {
+    ...user,
+    name: normalizedName,
+    avatar: resolveAssetUrl(user.avatar),
+  };
 };
+
+const normalizeUserProfile = (profile: Types.UserProfile): Types.UserProfile => ({
+  ...profile,
+  avatar: resolveAssetUrl(profile.avatar),
+});
 
 const toNumber = (value: unknown, fallback = 0): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -70,6 +121,32 @@ const extractDataObject = <T>(response: unknown): T => {
     }
   }
   return response as T;
+};
+
+const normalizeNotificationSettings = (response: unknown): Types.NotificationSettings => {
+  const source = extractDataObject<Record<string, unknown>>(response);
+  const defaultNotificationFrequencies: Types.NotificationFrequency[] = ['daily', 'weekly', 'monthly'];
+  const notificationFrequency =
+    (typeof source.notificationFrequency === 'string' && source.notificationFrequency) ||
+    (typeof source.reminderFrequency === 'string' && source.reminderFrequency) ||
+    'monthly';
+
+  const frequencyOptions = Array.isArray(source.frequencyOptions)
+    ? (source.frequencyOptions.filter((value): value is Types.NotificationFrequency =>
+        value === 'daily' || value === 'weekly' || value === 'monthly'))
+    : defaultNotificationFrequencies;
+
+  return {
+    userId: typeof source.userId === 'string' ? source.userId : 'user-me',
+    emailNotifications: Boolean(source.emailNotifications),
+    smsNotifications: Boolean(source.smsNotifications),
+    pushNotifications: Boolean(source.pushNotifications),
+    paymentReminders: Boolean(source.paymentReminders),
+    applicationUpdates: Boolean(source.applicationUpdates),
+    promotions: Boolean(source.promotions),
+    notificationFrequency: notificationFrequency as Types.NotificationFrequency,
+    frequencyOptions: frequencyOptions.length > 0 ? frequencyOptions : defaultNotificationFrequencies,
+  };
 };
 
 const normalizeRange = (range: any): Types.LoanConfigRange => ({
@@ -189,37 +266,129 @@ const normalizeLoanConfigType = (loanType: any): Types.LoanConfigLoanType => {
 };
 
 const normalizeLoan = (loan: any): Types.LoanDetails => {
+  const amount = toNumber(loan.loanAmount ?? loan.amount);
+  const totalRepayment = toNumber(loan.totalRepayment, amount);
+  const amountRemaining = toNumber(loan.amountRemaining ?? loan.outstanding, totalRepayment);
+  const amountPaid = toNumber(loan.amountPaid, Math.max(0, totalRepayment - amountRemaining));
+  const repaymentMonths = toNumber(loan.repaymentMonths ?? loan.tenure, 0);
+  const monthlyPayment = toNumber(loan.monthlyPayment ?? loan.amountDue);
+  const normalizedType =
+    typeof loan.loanType === 'string'
+      ? loan.loanType
+      : typeof loan.type === 'string' && loan.type.toLowerCase().includes('business')
+        ? 'business'
+        : 'personal';
+  const normalizedStatus =
+    loan.status === 'paid' || loan.status === 'repaid' ? 'completed' : loan.status;
+  const baseDate =
+    loan.createdAt ??
+    loan.updatedAt ??
+    loan.approvalDate ??
+    loan.date ??
+    new Date().toISOString();
+
   return {
     ...loan,
     id: String(loan.id),
-    loanId: String(loan.loanId),
+    loanId: String(loan.loanId ?? loan.id),
     userId: String(loan.userId),
-    loanAmount: toNumber(loan.loanAmount),
-    principalAmount: toNumber(loan.principalAmount),
+    loanType: normalizedType,
+    loanCategory: loan.loanCategory ?? loan.type ?? 'General',
+    loanAmount: amount,
+    principalAmount: toNumber(loan.principalAmount, amount),
     interestRate: toNumber(loan.interestRate),
-    serviceCharge: toNumber(loan.serviceCharge),
-    totalRepayment: toNumber(loan.totalRepayment),
-    repaymentMonths: toNumber(loan.repaymentMonths),
-    monthlyPayment: toNumber(loan.monthlyPayment),
-    amountPaid: toNumber(loan.amountPaid),
-    amountRemaining: toNumber(loan.amountRemaining),
+    serviceCharge: toNumber(loan.serviceCharge, Math.max(0, amount - toNumber(loan.disbursed, amount))),
+    totalRepayment,
+    repaymentMonths,
+    monthlyPayment,
+    status: normalizedStatus,
+    approvalDate: loan.approvalDate ?? loan.date ?? baseDate,
+    firstPaymentDate: loan.firstPaymentDate ?? loan.nextPayment ?? loan.nextPaymentDate ?? baseDate,
+    maturityDate: loan.maturityDate ?? loan.nextPayment ?? loan.nextPaymentDate ?? baseDate,
+    nextPaymentDate: loan.nextPaymentDate ?? loan.nextPayment ?? loan.firstPaymentDate ?? baseDate,
+    amountPaid,
+    amountRemaining,
+    lastPaymentDate: loan.lastPaymentDate,
+    lastPaymentAmount: toOptionalNumber(loan.lastPaymentAmount),
+    createdAt: loan.createdAt ?? loan.date ?? baseDate,
+    updatedAt: loan.updatedAt ?? loan.date ?? baseDate,
   };
 };
 
+const normalizeRepaymentSchedule = (schedule: any, loanId: string): Types.RepaymentSchedule => {
+  const amount = toNumber(schedule.amount);
+  const status =
+    schedule.status === 'paid'
+      ? 'paid'
+      : schedule.status === 'due' || schedule.status === 'overdue'
+        ? 'overdue'
+        : 'pending';
+
+  return {
+    id: String(schedule.id ?? `${loanId}-${schedule.date ?? schedule.dueDate ?? Date.now()}`),
+    loanId,
+    dueDate: schedule.dueDate ?? schedule.date ?? new Date().toISOString(),
+    amount,
+    principalAmount: toNumber(schedule.principalAmount, amount),
+    interestAmount: toNumber(schedule.interestAmount, 0),
+    status,
+    paidDate: schedule.paidDate,
+    paidAmount: toOptionalNumber(schedule.paidAmount),
+  };
+};
+
+const normalizePaymentHistoryItem = (payment: any): Types.PaymentHistory => ({
+  id: String(payment.id ?? payment.transactionId ?? payment.reference ?? Date.now()),
+  transactionId: String(payment.transactionId ?? payment.reference ?? payment.id ?? ''),
+  loanId: String(payment.loanId ?? ''),
+  amount: toNumber(payment.amount),
+  paymentMethod: payment.paymentMethod ?? 'bank_transfer',
+  status: payment.status ?? 'completed',
+  date: payment.date ?? new Date().toISOString(),
+  reference: String(payment.reference ?? payment.transactionId ?? ''),
+  description: payment.description ?? 'Loan Payment',
+});
+
+const isLoginResponse = (
+  response: Types.LoginResponse | Types.LoginOTPResponse,
+): response is Types.LoginResponse =>
+  'token' in response && typeof response.token === 'string' && 'user' in response;
+
 // ============ Authentication ============
 export const authService = {
-  async login(request: Types.LoginRequest): Promise<Types.LoginOTPResponse> {
+  async login(request: Types.LoginRequest): Promise<Types.LoginResponse | Types.LoginOTPResponse> {
     if (USAGE_DEMO) {
+      const user = normalizeAuthUser({
+        id: 'user-123',
+        name: 'John Doe',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: request.email || 'john@example.com',
+        phone: request.phone || '+260123456789',
+      });
+
       return {
         success: true,
-        message: 'OTP sent successfully',
-        otpId: 'otp-' + Date.now(),
+        message: 'Login successful',
+        user,
+        token: 'demo-token-' + Date.now(),
+        refreshToken: 'demo-refresh-token',
       };
     }
-    return apiCall('/auth/login', {
+    const response = await apiCall<Types.LoginResponse | Types.LoginOTPResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        ...request,
+        password: request.password ?? request.pin,
+      }),
     });
+    return isLoginResponse(response)
+      ? {
+          ...response,
+          refreshToken: response.refreshToken ?? response.token,
+          user: normalizeAuthUser(response.user),
+        }
+      : response;
   },
 
   async forgotPIN(request: Types.ForgotPINRequest): Promise<Types.ForgotPINResponse> {
@@ -424,45 +593,33 @@ export const authService = {
 export const userService = {
   async getProfile(): Promise<Types.UserProfile> {
     if (USAGE_DEMO) {
-      return {
-        id: 'user-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        phone: '+260123456789',
-        dateOfBirth: '1990-01-15',
-        address: '123 Main Street',
-        city: 'Lusaka',
-        country: 'Zambia',
-        idNumber: 'ZM123456789',
-        idType: 'National ID',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      return normalizeUserProfile(demoUserProfile);
     }
     const response = await apiCall<unknown>('/users/profile');
-    return extractDataObject<Types.UserProfile>(response);
+    return normalizeUserProfile(extractDataObject<Types.UserProfile>(response));
   },
 
   async updateProfile(request: Types.UpdateProfileRequest): Promise<Types.UpdateProfileResponse> {
     if (USAGE_DEMO) {
+      demoUserProfile = {
+        ...demoUserProfile,
+        ...request,
+        updatedAt: new Date().toISOString(),
+      };
+
       return {
         success: true,
-        user: {
-          id: 'user-123',
-          firstName: request.firstName || 'John',
-          lastName: request.lastName || 'Doe',
-          email: request.email || 'john@example.com',
-          phone: request.phone || '+260123456789',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
+        user: normalizeUserProfile(demoUserProfile),
       };
     }
-    return apiCall('/users/profile', {
+    const response = await apiCall<Types.UpdateProfileResponse>('/users/profile', {
       method: 'PUT',
       body: JSON.stringify(request),
     });
+    return {
+      ...response,
+      user: normalizeUserProfile(response.user),
+    };
   },
 
   async changePIN(oldPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
@@ -766,7 +923,9 @@ export const loanService = {
       }
       return schedules;
     }
-    return apiCall(`/loans/${loanId}/repayment-schedule`);
+    const response = await apiCall<unknown>(`/loans/${loanId}/repayment-schedule`);
+    const schedule = extractDataArray<any>(response);
+    return schedule.map((item) => normalizeRepaymentSchedule(item, loanId));
   },
 };
 
@@ -814,7 +973,9 @@ export const paymentService = {
         },
       ];
     }
-    return apiCall(`/payments/history/${loanId}`);
+    const response = await apiCall<unknown>(`/payments/history/${loanId}`);
+    const payments = extractDataArray<any>(response);
+    return payments.map(normalizePaymentHistoryItem);
   },
 
   async calculateEarlyRepayment(request: Types.EarlyRepaymentRequest): Promise<Types.EarlyRepaymentCalculation> {
@@ -897,6 +1058,20 @@ export const restructuringService = {
 
 // ============ KYC / Documents ============
 export const kycService = {
+  async saveProfileDetails(request: Types.KYCProfileDetailsRequest): Promise<Types.KYCProfileDetailsResponse> {
+    if (USAGE_DEMO) {
+      return {
+        success: true,
+        message: 'KYC details saved successfully',
+      };
+    }
+
+    return apiCall('/kyc/profile', {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  },
+
   async uploadDocument(request: Types.DocumentUploadRequest): Promise<Types.DocumentUploadResponse> {
     if (USAGE_DEMO) {
       return {
@@ -959,7 +1134,7 @@ export const notificationService = {
       };
     }
     const response = await apiCall<unknown>('/notifications/settings');
-    return extractDataObject<Types.NotificationSettings>(response);
+    return normalizeNotificationSettings(response);
   },
 
   async updateNotificationSettings(request: Types.UpdateNotificationSettingsRequest): Promise<Types.NotificationSettings> {
@@ -979,7 +1154,7 @@ export const notificationService = {
       method: 'PUT',
       body: JSON.stringify(request),
     });
-    return extractDataObject<Types.NotificationSettings>(response);
+    return normalizeNotificationSettings(response);
   },
 };
 

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loanService, paymentService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { isActiveLoanStatus } from "@/lib/loan-status";
 import { ChevronLeft, TrendingDown, Zap, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
@@ -27,7 +28,7 @@ export default function EarlyRepaymentCalculator() {
     const fetchLoan = async () => {
       try {
         const loans = await loanService.getUserLoans();
-        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        const activeLoan = loans.find((loan) => isActiveLoanStatus(loan.status));
         if (!activeLoan) {
           setError("No active loan found for early repayment.");
           return;
@@ -60,7 +61,7 @@ export default function EarlyRepaymentCalculator() {
       try {
         setIsCalculating(true);
         const result = await paymentService.calculateEarlyRepayment({
-          loanId: loanInfo.id,
+          loanId: loanInfo.loanId,
           repaymentAmount,
         });
         setCalculation(result);
@@ -97,7 +98,7 @@ export default function EarlyRepaymentCalculator() {
     try {
       setIsSubmitting(true);
       const response = await paymentService.submitEarlyRepayment({
-        loanId: loanInfo.id,
+        loanId: loanInfo.loanId,
         repaymentAmount,
       });
 

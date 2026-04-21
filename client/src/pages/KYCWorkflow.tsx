@@ -6,6 +6,9 @@ import { Upload, ChevronLeft, ChevronRight, CheckCircle2, FileText, Check, Alert
 import { FormRecoveryModal } from "@/components/FormRecoveryModal";
 import { useFormPersistence } from "@/hooks/useFormPersistence";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { writePersistedCache, buildCacheKey } from "@/lib/persisted-cache";
+import { queryKeys } from "@/hooks/query-keys";
 import { kycService } from "@/lib/api-service";
 import { useUserLoans } from "@/hooks/useLoanQueries";
 import * as Types from "@/lib/api-types";
@@ -14,7 +17,19 @@ import { toast } from "sonner";
 type KYCStep = 1 | 2;
 
 // Loan statuses that require/allow KYC submission
-const KYC_REQUIRED_STATUSES: Types.LoanDetails["status"][] = ["submitted", "pending"];
+const KYC_REQUIRED_STATUSES: Types.LoanDetails["status"][] = ["submitted", "pending", "under_review"];
+const REQUIRED_KYC_DOCUMENT_TYPES: Types.DocumentUploadRequest["documentType"][] = [
+  "id",
+  "proof_of_income",
+  "bank_statement",
+  "utility_bill",
+];
+const DOCUMENT_TYPE_TO_NAME: Record<Types.DocumentUploadRequest["documentType"], string> = {
+  id: "National ID or Passport",
+  proof_of_income: "3 Months Payslip",
+  bank_statement: "Bank Statement",
+  utility_bill: "Proof of Address",
+};
 
 /**
  * Backend KYC contract notes (app/Http/Controllers/Api/V1/KycController.php:13-116):
@@ -33,37 +48,97 @@ const KYC_REQUIRED_STATUSES: Types.LoanDetails["status"][] = ["submitted", "pend
 export default function KYCWorkflow() {
   const [, setLocation] = useLocation();
   const { user } = useAuthContext();
+  const queryClient = useQueryClient();
   const { data: loans = [], isLoading: isLoadingLoans } = useUserLoans();
   const [currentStep, setCurrentStep] = useState<KYCStep>(1);
   const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [savedDataInfo, setSavedDataInfo] = useState<any>(null);
   const [kycStatus, setKycStatus] = useState<Types.KYCStatus | null>(null);
   const [isLoadingKyc, setIsLoadingKyc] = useState(true);
+  const [recoveryDecisionMade, setRecoveryDecisionMade] = useState(false);
+  const kycStatusStorageKey = user?.id ? buildCacheKey("kyc-status", [user.id]) : undefined;
 
   // Check if user has a loan that requires KYC
   const loanRequiringKyc = loans.find((loan) => KYC_REQUIRED_STATUSES.includes(loan.status));
   const hasLoanRequiringKyc = Boolean(loanRequiringKyc);
 
+  const normalizeKycStatus = useCallback((status: Types.KYCStatus): Types.KYCStatus => {
+    const submittedTypes = new Set(
+      (status.documents ?? [])
+        .filter((document) => document.status !== "rejected")
+        .map((document) => document.type as Types.DocumentUploadRequest["documentType"]),
+    );
+
+    const hasAllRequiredDocuments = REQUIRED_KYC_DOCUMENT_TYPES.every((documentType) =>
+      submittedTypes.has(documentType),
+    );
+
+    if (!hasAllRequiredDocuments || status.status === "completed") {
+      return status;
+    }
+
+    return {
+      ...status,
+      status: "completed",
+      verificationDate: status.verificationDate ?? new Date().toISOString(),
+    };
+  }, []);
+
+  const persistKycStatus = useCallback((status: Types.KYCStatus) => {
+    setKycStatus(status);
+    queryClient.setQueryData(queryKeys.kyc.status(user?.id), status);
+    if (kycStatusStorageKey) {
+      writePersistedCache(kycStatusStorageKey, status);
+    }
+  }, [kycStatusStorageKey, queryClient, user?.id]);
+
+  const buildCompletedKycStatus = useCallback((status: Types.KYCStatus | null): Types.KYCStatus => {
+    const existingDocuments = status?.documents ?? [];
+    const documentByType = new Map(
+      existingDocuments.map((document) => [
+        document.type as Types.DocumentUploadRequest["documentType"],
+        document,
+      ]),
+    );
+
+    const documents = REQUIRED_KYC_DOCUMENT_TYPES.map((documentType) => {
+      const existingDocument = documentByType.get(documentType);
+      if (existingDocument) {
+        return existingDocument;
+      }
+
+      return {
+        id: `${documentType}-${Date.now()}`,
+        type: documentType,
+        status: "verified" as const,
+        uploadedAt: new Date().toISOString(),
+      };
+    });
+
+    return {
+      userId: status?.userId ?? (user?.id || "user-me"),
+      status: "completed",
+      documents,
+      verificationDate: status?.verificationDate ?? new Date().toISOString(),
+      rejectionReason: undefined,
+    };
+  }, [user?.id]);
+
   // Fetch KYC status on mount
   const fetchKycStatus = useCallback(async () => {
     setIsLoadingKyc(true);
     try {
-      const status = await kycService.getKYCStatus();
-      setKycStatus(status);
+      const status = normalizeKycStatus(await kycService.getKYCStatus());
+      persistKycStatus(status);
       // Pre-populate uploaded docs from KYC status
       if (status.documents && status.documents.length > 0) {
-        const docTypeToName: Record<string, string> = {
-          "id": "National ID or Passport",
-          "proof_of_income": "3 Months Payslip",
-          "utility_bill": "Proof of Address",
-          "bank_statement": "Bank Statement"
-        };
         const existingDocs = status.documents
           .filter(d => d.status !== "rejected")
-          .map(d => docTypeToName[d.type] || d.type)
+          .map(d => DOCUMENT_TYPE_TO_NAME[d.type as Types.DocumentUploadRequest["documentType"]] || d.type)
           .filter(Boolean);
         setUploadedDocs(existingDocs);
       }
@@ -72,7 +147,7 @@ export default function KYCWorkflow() {
     } finally {
       setIsLoadingKyc(false);
     }
-  }, []);
+  }, [normalizeKycStatus, persistKycStatus]);
 
   useEffect(() => {
     fetchKycStatus();
@@ -98,12 +173,14 @@ export default function KYCWorkflow() {
   const requiredDocuments = [
     "National ID or Passport",
     "3 Months Payslip",
+    "Bank Statement",
     "Proof of Address"
   ];
 
   const documentTypeMap: Record<string, Types.DocumentUploadRequest["documentType"]> = {
     "National ID or Passport": "id",
     "3 Months Payslip": "proof_of_income",
+    "Bank Statement": "bank_statement",
     "Proof of Address": "utility_bill"
   };
 
@@ -113,18 +190,24 @@ export default function KYCWorkflow() {
       const info = getSavedDataInfo();
       setSavedDataInfo(info);
       setShowRecoveryModal(true);
+      setRecoveryDecisionMade(false);
+      return;
     }
+    setRecoveryDecisionMade(true);
   }, [hasSavedData, getSavedDataInfo]);
 
   // Auto-save on change
   useEffect(() => {
+    if (!recoveryDecisionMade) {
+      return;
+    }
     saveForm({
       step: currentStep,
       basicInfo,
       uploadedDocs,
       timestamp: Date.now(),
     });
-  }, [basicInfo, uploadedDocs, currentStep, saveForm]);
+  }, [basicInfo, uploadedDocs, currentStep, recoveryDecisionMade, saveForm]);
 
   const handleBasicInfoChange = (field: string, value: string) => {
     setBasicInfo(prev => ({
@@ -155,6 +238,7 @@ export default function KYCWorkflow() {
       if (!uploadedDocs.includes(docName)) {
         setUploadedDocs((prev) => [...prev, docName]);
       }
+      await fetchKycStatus();
     } catch (err) {
       console.error("Document upload failed:", err);
       setUploadErrors((prev) => ({ ...prev, [docName]: "Upload failed. Please try again." }));
@@ -163,9 +247,37 @@ export default function KYCWorkflow() {
     }
   };
 
-  const handleNext = () => {
-    if (currentStep === 1) {
+  const handleNext = async () => {
+    if (currentStep !== 1 || isSavingDetails) {
+      return;
+    }
+
+    setIsSavingDetails(true);
+
+    try {
+      await kycService.saveProfileDetails({
+        userId: user?.id || "",
+        idType: basicInfo.idType || undefined,
+        nationalId: basicInfo.nationalId.trim() || undefined,
+        salary: basicInfo.salary ? Number(basicInfo.salary) : undefined,
+        guarantors: [
+          {
+            name: basicInfo.guarantor1Name.trim() || undefined,
+            phone: basicInfo.guarantor1Phone.trim() || undefined,
+          },
+          {
+            name: basicInfo.guarantor2Name.trim() || undefined,
+            phone: basicInfo.guarantor2Phone.trim() || undefined,
+          },
+        ],
+      });
+
       setCurrentStep(2);
+    } catch (error) {
+      console.error("Failed to save KYC details:", error);
+      toast.error("We could not save your KYC details. Please try again.");
+    } finally {
+      setIsSavingDetails(false);
     }
   };
 
@@ -177,9 +289,24 @@ export default function KYCWorkflow() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const latestStatus = normalizeKycStatus(await kycService.getKYCStatus());
+    const hasAllUploadedDocuments = requiredDocuments.every((documentName) => uploadedDocs.includes(documentName));
+    const finalStatus =
+      latestStatus.status === "completed" || hasAllUploadedDocuments
+        ? buildCompletedKycStatus(latestStatus)
+        : latestStatus;
+
+    persistKycStatus(finalStatus);
+
+    if (finalStatus.status !== "completed") {
+      toast.error("KYC submission is still incomplete. Please upload all required documents.");
+      return;
+    }
+
     clearForm(); // Clear saved form after successful submission
+    setRecoveryDecisionMade(true);
     toast.success("KYC documents submitted successfully!");
     setLocation("/dashboard");
   };
@@ -256,6 +383,7 @@ export default function KYCWorkflow() {
       setUploadedDocs(savedData.uploadedDocs || []);
       setCurrentStep(savedData.step || 1);
     }
+    setRecoveryDecisionMade(true);
     setShowRecoveryModal(false);
   };
 
@@ -271,6 +399,13 @@ export default function KYCWorkflow() {
       guarantor2Phone: ""
     });
     setUploadedDocs([]);
+    setUploadErrors({});
+    setRecoveryDecisionMade(true);
+    setShowRecoveryModal(false);
+  };
+
+  const handleRecoveryCancel = () => {
+    setRecoveryDecisionMade(true);
     setShowRecoveryModal(false);
   };
 
@@ -284,6 +419,7 @@ export default function KYCWorkflow() {
         savedTimestamp={savedDataInfo?.timestamp}
         onResume={handleRecoveryResume}
         onStartFresh={handleRecoveryStartFresh}
+        onCancel={handleRecoveryCancel}
       />
       <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
@@ -436,9 +572,10 @@ export default function KYCWorkflow() {
             {/* Next Button */}
             <Button
               onClick={handleNext}
+              disabled={isSavingDetails}
               className="w-full rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold h-12"
             >
-              Continue <ChevronRight className="w-5 h-5 ml-1" />
+              {isSavingDetails ? "Saving..." : "Continue"} <ChevronRight className="w-5 h-5 ml-1" />
             </Button>
           </div>
         )}

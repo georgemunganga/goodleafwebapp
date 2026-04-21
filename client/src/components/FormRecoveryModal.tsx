@@ -16,6 +16,7 @@ interface FormRecoveryModalProps {
   savedTimestamp?: number;
   onResume: () => void;
   onStartFresh: () => void;
+  onCancel: () => void;
   isLoading?: boolean;
 }
 
@@ -25,6 +26,7 @@ export function FormRecoveryModal({
   savedTimestamp,
   onResume,
   onStartFresh,
+  onCancel,
   isLoading = false,
 }: FormRecoveryModalProps) {
   const getTimeAgo = (timestamp?: number) => {
@@ -39,10 +41,14 @@ export function FormRecoveryModal({
   const timeAgo = getTimeAgo(savedTimestamp);
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      // Prevent closing by clicking outside
-      if (!isOpen) return;
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onCancel();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -70,6 +76,14 @@ export function FormRecoveryModal({
         </div>
 
         <div className="flex gap-3">
+          <Button
+            variant="ghost"
+            onClick={onCancel}
+            disabled={isLoading}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
           <Button
             variant="outline"
             onClick={onStartFresh}

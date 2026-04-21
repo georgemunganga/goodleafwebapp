@@ -11,6 +11,14 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+type NavItem = {
+  path: string;
+  label: string;
+  icon: typeof Home;
+  badge?: number;
+  placeholder?: boolean;
+};
+
 /**
  * AppLayout Component
  * Mobile-first design matching industry banking apps
@@ -27,8 +35,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { logout } = useAuthContext();
 
   // Conditionally show "Apply for Loan" or "Application Status" based on user's loan status
-  const mainNavItems = useMemo(() => {
-    const baseItems = [
+  const mainNavItems = useMemo<NavItem[]>(() => {
+    const baseItems: NavItem[] = [
       { path: "/dashboard", label: "Dashboard", icon: Home },
       { path: "/loans", label: "My Loans", icon: FileText },
     ];
@@ -53,13 +61,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return baseItems;
   }, [canApply, inProgressLoan]);
 
-  const secondaryNavItems = [
+  const secondaryNavItems: NavItem[] = [
     { path: "/profile", label: "Profile", icon: User },
     { path: "/settings", label: "Settings", icon: Settings },
     { path: "/help", label: "Help & Support", icon: HelpCircle },
   ];
 
-  const mobileNavItems = [
+  const mobileNavItems: NavItem[] = [
     { path: "/dashboard", label: "Home", icon: Home, badge: badges.dashboardBadge },
     { path: "/loans", label: "Loans", icon: FileText, badge: badges.loansBadge },
     { path: "/profile", label: "Profile", icon: User, badge: badges.profileBadge }

@@ -7,8 +7,10 @@ import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Download, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { paymentService } from "@/lib/api-service";
+import { loanService, paymentService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { downloadLoanStatement } from "@/lib/loan-statement";
+import { toast } from "sonner";
 
 interface Transaction extends Types.PaymentHistory {
   type: "payment" | "fee" | "interest";
@@ -21,6 +23,7 @@ export default function PaymentHistory() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloadingStatement, setIsDownloadingStatement] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,9 +37,9 @@ export default function PaymentHistory() {
       try {
         setIsLoading(true);
         const history = await paymentService.getPaymentHistory(loanId);
-        const mapped = history.map((item) => ({
+        const mapped: Transaction[] = history.map((item) => ({
           ...item,
-          type: "payment",
+          type: "payment" as const,
         }));
         setTransactions(mapped);
         setError(null);
@@ -79,6 +82,33 @@ export default function PaymentHistory() {
 
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const handleDownloadStatement = async () => {
+    if (!loanId) {
+      toast.error("Loan not found.");
+      return;
+    }
+
+    try {
+      setIsDownloadingStatement(true);
+      const [loan, schedule] = await Promise.all([
+        loanService.getLoanDetails(loanId),
+        loanService.getRepaymentSchedule(loanId),
+      ]);
+
+      downloadLoanStatement({
+        loan,
+        schedule,
+        payments: transactions,
+      });
+      toast.success("Loan statement downloaded.");
+    } catch (downloadError) {
+      console.error("Failed to download statement:", downloadError);
+      toast.error("Failed to download statement.");
+    } finally {
+      setIsDownloadingStatement(false);
+    }
   };
 
   return (
@@ -171,12 +201,13 @@ export default function PaymentHistory() {
 
             {/* Download Statement */}
             <Button
-              onClick={() => alert("Downloading statement...")}
+              onClick={handleDownloadStatement}
               variant="outline"
+              disabled={isDownloadingStatement}
               className="w-full border-2 border-gray-200 text-gray-700 font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50"
             >
               <Download className="w-5 h-5" />
-              Download Statement
+              {isDownloadingStatement ? "Downloading..." : "Download Statement"}
             </Button>
           </>
         )}

@@ -4,10 +4,16 @@ import { useLocation } from "wouter";
 import { ChevronLeft, Upload, CheckCircle2, Copy, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { FormRecoveryModal } from "@/components/FormRecoveryModal";
 import { useFormPersistence } from "@/hooks/useFormPersistence";
 import { loanService, paymentService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { isActiveLoanStatus } from "@/lib/loan-status";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { applyPaymentToLoanRecords } from "@/lib/payment-cache";
+import { queryKeys } from "@/hooks/query-keys";
+import { buildCacheKey, writePersistedCache } from "@/lib/persisted-cache";
 
 /**
  * Repayment Submission Page
@@ -18,6 +24,8 @@ import * as Types from "@/lib/api-types";
  */
 export default function RepaymentSubmission() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const { user } = useAuthContext();
   const [paymentAmount, setPaymentAmount] = useState("916.67");
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -47,7 +55,7 @@ export default function RepaymentSubmission() {
       try {
         setIsLoading(true);
         const loans = await loanService.getUserLoans();
-        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        const activeLoan = loans.find((loan) => isActiveLoanStatus(loan.status));
         if (!activeLoan) {
           setError("No active loan found for repayment.");
           return;
@@ -115,13 +123,37 @@ export default function RepaymentSubmission() {
     try {
       setIsSubmitting(true);
       const response = await paymentService.submitPayment({
-        loanId: loanInfo.id,
+        loanId: loanInfo.loanId,
         amount,
         paymentMethod: "bank_transfer",
         reference: uploadedFile,
       });
 
       if (response.success) {
+        const paidAt = new Date().toISOString();
+        const loansCacheKey = buildCacheKey("loans", [user?.id ?? "me"]);
+
+        try {
+          const refreshedLoans = await loanService.getUserLoans();
+          queryClient.setQueryData(queryKeys.loans.list({ userId: user?.id }), refreshedLoans);
+          writePersistedCache(loansCacheKey, refreshedLoans);
+        } catch (refreshError) {
+          const existingLoans =
+            queryClient.getQueryData<Types.LoanDetails[]>(queryKeys.loans.list({ userId: user?.id })) ?? [];
+          const optimisticLoans = applyPaymentToLoanRecords(existingLoans, {
+            loanId: loanInfo.loanId,
+            amount,
+            paidAt,
+          });
+
+          queryClient.setQueryData(queryKeys.loans.list({ userId: user?.id }), optimisticLoans);
+          writePersistedCache(loansCacheKey, optimisticLoans);
+          console.warn("Fell back to optimistic dashboard payment update.", refreshError);
+        }
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.loans.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
+
         clearForm(); // Clear saved form after successful submission
         setIsSubmitted(true);
       } else {
@@ -129,7 +161,11 @@ export default function RepaymentSubmission() {
       }
     } catch (err) {
       console.error("Payment submission failed:", err);
-      toast.error("Failed to submit payment.");
+      const message =
+        typeof (err as any)?.message === "string" && (err as any).message.trim().length > 0
+          ? (err as any).message
+          : "Failed to submit payment.";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -148,6 +184,10 @@ export default function RepaymentSubmission() {
     clearForm();
     setPaymentAmount("916.67");
     setUploadedFile(null);
+    setShowRecoveryModal(false);
+  };
+
+  const handleRecoveryCancel = () => {
     setShowRecoveryModal(false);
   };
 
@@ -181,6 +221,7 @@ export default function RepaymentSubmission() {
         savedTimestamp={savedDataInfo?.timestamp}
         onResume={handleRecoveryResume}
         onStartFresh={handleRecoveryStartFresh}
+        onCancel={handleRecoveryCancel}
       />
       <div className="min-h-screen bg-slate-50">
       {/* Header */}

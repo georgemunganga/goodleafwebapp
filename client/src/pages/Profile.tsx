@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useLocation } from "wouter";
-import { Lock, Bell, LogOut, ChevronRight, User, Shield, HelpCircle, FileText, Phone, Mail, MapPin, Camera, Edit2 } from "lucide-react";
-import { useMemo } from "react";
+import { Lock, Bell, LogOut, ChevronRight, User, Shield, HelpCircle, FileText, Phone, Mail, MapPin, Camera, Edit2, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useUserProfile } from "@/hooks/useUserQueries";
+import { useUpdateUserProfile, useUserProfile } from "@/hooks/useUserQueries";
+import { toast } from "sonner";
 
 /**
  * Profile Page
@@ -15,10 +16,14 @@ import { useUserProfile } from "@/hooks/useUserQueries";
  */
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { logout } = useAuthContext();
+  const { logout, user } = useAuthContext();
   const profileQuery = useUserProfile();
+  const updateProfile = useUpdateUserProfile();
   const profile = profileQuery.data ?? null;
   const isLoading = profileQuery.isLoading;
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const error = profileQuery.error
     ? profileQuery.error instanceof Error
       ? profileQuery.error.message
@@ -29,6 +34,69 @@ export default function Profile() {
     if (!profile) return "";
     return `${profile.firstName?.[0] || ""}${profile.lastName?.[0] || ""}`.toUpperCase();
   }, [profile]);
+  const avatarSrc = profileQuery.data ? (profile?.avatar ?? null) : (user?.avatar ?? null);
+
+  const handleAvatarButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Profile photo must be 5MB or smaller.");
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      const avatarDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") {
+            resolve(reader.result);
+            return;
+          }
+          reject(new Error("Failed to read the selected image."));
+        };
+        reader.onerror = () => reject(new Error("Failed to read the selected image."));
+        reader.readAsDataURL(file);
+      });
+
+      await updateProfile.mutateAsync({ avatar: avatarDataUrl });
+      setAvatarLoadFailed(false);
+      toast.success("Profile photo updated.");
+    } catch (uploadError) {
+      console.error("Failed to upload profile photo:", uploadError);
+      toast.error("Failed to update profile photo.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    try {
+      setIsUploadingAvatar(true);
+      await updateProfile.mutateAsync({ removeAvatar: true });
+      setAvatarLoadFailed(false);
+      toast.success("Profile photo removed.");
+    } catch (removeError) {
+      console.error("Failed to remove profile photo:", removeError);
+      toast.error("Failed to remove profile photo.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const menuItems = [
     {
@@ -82,19 +150,47 @@ export default function Profile() {
               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30">
                 {isLoading ? (
                   <LoadingSpinner variant="spinner" size="sm" color="white" />
+                ) : avatarSrc && !avatarLoadFailed ? (
+                  <img
+                    src={avatarSrc}
+                    alt="Profile"
+                    className="w-full h-full rounded-full object-cover"
+                    onError={() => setAvatarLoadFailed(true)}
+                  />
                 ) : (
                   <span className="text-2xl font-bold text-white">{initials || "--"}</span>
                 )}
               </div>
-              <button className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
+              <button
+                onClick={handleAvatarButtonClick}
+                disabled={isLoading || isUploadingAvatar}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg disabled:opacity-60"
+              >
                 <Camera className="w-4 h-4 text-primary" />
               </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarSelected}
+              />
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-bold">
                 {profile ? `${profile.firstName} ${profile.lastName}` : "Loading..."}
               </h2>
               <p className="text-white/70 text-sm">{profile?.email || ""}</p>
+              {avatarSrc && !avatarLoadFailed && (
+                <button
+                  onClick={handleRemoveAvatar}
+                  disabled={isUploadingAvatar}
+                  className="mt-2 inline-flex items-center gap-2 text-xs text-white/80 hover:text-white disabled:opacity-60"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Remove photo
+                </button>
+              )}
             </div>
             <button
               onClick={() => setLocation("/personal-details")}

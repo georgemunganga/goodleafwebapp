@@ -34,6 +34,21 @@ function formatRelativeTime(dateString: string): string {
   return date.toLocaleDateString();
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
+
 export default function SecuritySettings() {
   const [, setLocation] = useLocation();
   const { user } = useAuthContext();
@@ -84,7 +99,7 @@ export default function SecuritySettings() {
   useEffect(() => {
     const queryError = securitySettingsQuery.error || sessionsQuery.error;
     if (queryError) {
-      const message = queryError.message || "Failed to load security settings";
+      const message = getErrorMessage(queryError, "Failed to load security settings");
       setError(message);
       if (errorToastRef.current !== message) {
         toast.error(message);
@@ -119,7 +134,12 @@ export default function SecuritySettings() {
   const handleTwoFactorToggle = useCallback(async () => {
     if (isLoading || isSaving2FA) return;
 
-    const newValue = !twoFAEnabled;
+    if (twoFAEnabled) {
+      toast.info("Two-factor authentication can only be enabled here. Contact support to reset it.");
+      return;
+    }
+
+    const newValue = true;
     const previousValue = serverTwoFARef.current;
 
     setTwoFAEnabled(newValue);
@@ -129,11 +149,11 @@ export default function SecuritySettings() {
 
       const response = newValue
         ? await securityService.enableTwoFactor({ method: "sms" })
-        : await securityService.disableTwoFactor();
+        : null;
 
-      if (!response.success) {
+      if (!response?.success) {
         setTwoFAEnabled(previousValue);
-        toast.error(response.message || "Failed to update two-factor authentication");
+        toast.error(response?.message || "Failed to update two-factor authentication");
         return;
       }
 
@@ -156,9 +176,7 @@ export default function SecuritySettings() {
 
       setError(null);
       toast.success(
-        newValue
-          ? "Two-factor authentication enabled"
-          : "Two-factor authentication disabled",
+        "Two-factor authentication enabled",
       );
     } catch (err) {
       console.error("Failed to update 2FA:", err);
@@ -279,7 +297,7 @@ export default function SecuritySettings() {
                   twoFAEnabled ? "bg-primary" : "bg-gray-300"
                 } ${isSaving2FA ? "opacity-70" : ""}`}
                 disabled={isLoading || isSaving2FA}
-                aria-label={twoFAEnabled ? "Disable 2FA" : "Enable 2FA"}
+                aria-label={twoFAEnabled ? "Two-factor authentication enabled" : "Enable 2FA"}
               >
                 <div
                   className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform flex items-center justify-center ${
@@ -297,6 +315,11 @@ export default function SecuritySettings() {
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <p className="text-sm text-green-600 font-medium">Enabled via SMS</p>
               </div>
+            )}
+            {twoFAEnabled && (
+              <p className="mt-2 text-xs text-gray-500">
+                Two-factor authentication is enabled for this account and cannot be turned off from the app.
+              </p>
             )}
           </div>
 

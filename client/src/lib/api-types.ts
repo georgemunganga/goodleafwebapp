@@ -8,6 +8,7 @@ export interface LoginRequest {
   phone?: string;
   email?: string;
   pin: string;
+  password?: string;
 }
 
 export interface LoginOTPResponse {
@@ -127,6 +128,8 @@ export interface UpdateProfileRequest {
   address?: string;
   city?: string;
   country?: string;
+  avatar?: string;
+  removeAvatar?: boolean;
 }
 
 export interface UpdateProfileResponse {
@@ -257,7 +260,7 @@ export interface LoanDetails {
   totalRepayment: number;
   repaymentMonths: number;
   monthlyPayment: number;
-  status: "submitted" | "active" | "completed" | "defaulted" | "pending" | "rejected";
+  status: "submitted" | "approved_not_disbursed" | "active" | "completed" | "defaulted" | "pending" | "rejected" | "under_review" | "closed";
   approvalDate: string;
   firstPaymentDate: string;
   maturityDate: string;
@@ -265,6 +268,7 @@ export interface LoanDetails {
   amountPaid: number;
   amountRemaining: number;
   lastPaymentDate?: string;
+  lastPaymentAmount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -368,6 +372,22 @@ export interface KYCStatus {
   }[];
   verificationDate?: string;
   rejectionReason?: string;
+}
+
+export interface KYCProfileDetailsRequest {
+  userId: string;
+  idType?: string;
+  nationalId?: string;
+  salary?: number;
+  guarantors?: {
+    name?: string;
+    phone?: string;
+  }[];
+}
+
+export interface KYCProfileDetailsResponse {
+  success: boolean;
+  message: string;
 }
 
 // ============ Notifications ============

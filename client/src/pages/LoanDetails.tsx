@@ -2,9 +2,12 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import * as Types from "@/lib/api-types";
 import { ArrowLeft, Calendar, Check, Clock, Download, TrendingDown } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useLoanDetails, useRepaymentSchedule } from "@/hooks/useLoanQueries";
+import { paymentService } from "@/lib/api-service";
+import { downloadLoanStatement } from "@/lib/loan-statement";
+import { toast } from "sonner";
 
 /**
  * Loan Details Page
@@ -23,6 +26,7 @@ export default function LoanDetails() {
   const loan = (loanQuery.data ?? null) as Types.LoanDetails | null;
   const schedule = (scheduleQuery.data ?? []) as Types.RepaymentSchedule[];
   const isLoading = loanQuery.isLoading || scheduleQuery.isLoading;
+  const [isDownloadingStatement, setIsDownloadingStatement] = useState(false);
   const error = loanQuery.error || scheduleQuery.error;
   const errorMessage = (() => {
     if (!error) return null;
@@ -37,6 +41,19 @@ export default function LoanDetails() {
     if (!loan || !loan.loanAmount) return 0;
     return Math.round((loan.amountPaid / loan.loanAmount) * 100);
   }, [loan]);
+
+  const formatDisplayDate = (value?: string | null) => {
+    if (!value || value === "0" || value.startsWith("1970-01-01")) {
+      return "-";
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime()) || parsed.getTime() === 0) {
+      return "-";
+    }
+
+    return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
 
   if (isLoading) {
     return (
@@ -76,12 +93,19 @@ export default function LoanDetails() {
     allowPayment: boolean;
   };
 
-  const LOAN_STATUS_META: Record<Types.LoanDetails["status"], LoanStatusMeta> = {
+  const LOAN_STATUS_META: Record<Exclude<Types.LoanDetails["status"], "under_review" | "closed">, LoanStatusMeta> = {
     submitted: {
       label: "Submitted",
       badgeClass: "bg-amber-100 text-amber-800",
       description: "Application submitted. We'll notify you once your loan is approved/disbursed.",
       actionDescription: "Loan is still being reviewed; no actions are available yet.",
+      allowPayment: false,
+    },
+    approved_not_disbursed: {
+      label: "Approved",
+      badgeClass: "bg-emerald-100 text-emerald-700",
+      description: "Your loan has been approved and is awaiting disbursement.",
+      actionDescription: "This loan now appears in your open loans and will become active once disbursement is completed.",
       allowPayment: false,
     },
     pending: {
@@ -121,13 +145,54 @@ export default function LoanDetails() {
     },
   };
 
-  const statusMeta = LOAN_STATUS_META[loan.status];
+  const loanStatusMeta: Record<Types.LoanDetails["status"], LoanStatusMeta> = {
+    ...LOAN_STATUS_META,
+    under_review: {
+      label: "Under Review",
+      badgeClass: "bg-blue-100 text-blue-700",
+      description: "Your application is under review.",
+      actionDescription: "We'll notify you once the loan is approved and opened.",
+      allowPayment: false,
+    },
+    closed: {
+      label: "Closed",
+      badgeClass: "bg-gray-100 text-gray-700",
+      description: "This loan has been fully repaid and closed.",
+      actionDescription: "View past payments or download your statements.",
+      allowPayment: false,
+    },
+  };
+
+  const statusMeta = loanStatusMeta[loan.status];
   const statusLabel = statusMeta.label;
   const statusBadgeClass = statusMeta.badgeClass;
 
   const nextPaymentLabel = loan.nextPaymentDate
     ? new Date(loan.nextPaymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "-";
+  const showRepaymentSchedule = ["active", "completed", "closed", "defaulted"].includes(loan.status);
+
+  const handleDownloadStatement = async () => {
+    if (!loan) {
+      return;
+    }
+
+    try {
+      setIsDownloadingStatement(true);
+      const payments = loanId ? await paymentService.getPaymentHistory(loanId) : [];
+      downloadLoanStatement({
+        loan,
+        schedule,
+        payments,
+      });
+      toast.success("Loan statement downloaded.");
+    } catch (downloadError) {
+      console.error("Failed to download loan statement:", downloadError);
+      toast.error("Failed to download statement.");
+    } finally {
+      setIsDownloadingStatement(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden pb-24">
@@ -196,7 +261,7 @@ export default function LoanDetails() {
                 <span className="text-base text-gray-600 font-medium">Disbursed</span>
               </div>
               <span className="text-base font-bold text-gray-900">
-                {new Date(loan.approvalDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                {formatDisplayDate(loan.approvalDate)}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -231,38 +296,40 @@ export default function LoanDetails() {
         </div>
 
         {/* Repayment Schedule */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-5 border-b border-gray-100">
-            <h3 className="text-lg font-bold text-gray-900">Repayment Schedule</h3>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {schedule.length > 0 ? (
-              schedule.map((payment) => {
-                const dueDate = new Date(payment.dueDate);
-                return (
-                  <div key={payment.id} className="p-5 flex items-center justify-between">
-                    <div>
-                      <p className="text-base font-bold text-gray-900">{dueDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}</p>
-                      <p className="text-sm text-gray-500">Due: {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+        {showRepaymentSchedule && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">Repayment Schedule</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {schedule.length > 0 ? (
+                schedule.map((payment) => {
+                  const dueDate = new Date(payment.dueDate);
+                  return (
+                    <div key={payment.id} className="p-5 flex items-center justify-between">
+                      <div>
+                        <p className="text-base font-bold text-gray-900">{dueDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}</p>
+                        <p className="text-sm text-gray-500">Due: {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-base font-bold text-gray-900">K{payment.amount.toLocaleString()}</p>
+                        <p className={`text-sm font-semibold flex items-center gap-1 justify-end ${payment.status === "paid" ? "text-green-600" : "text-amber-600"}`}>
+                          {payment.status === "paid" && <Check className="w-4 h-4" />}
+                          {payment.status === "paid" ? "Paid" : "Upcoming"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-base font-bold text-gray-900">K{payment.amount.toLocaleString()}</p>
-                      <p className={`text-sm font-semibold flex items-center gap-1 justify-end ${payment.status === "paid" ? "text-green-600" : "text-amber-600"}`}>
-                        {payment.status === "paid" && <Check className="w-4 h-4" />}
-                        {payment.status === "paid" ? "Paid" : "Upcoming"}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="p-5 text-center text-sm text-gray-500">No repayment schedule available yet.</div>
-            )}
+                  );
+                })
+              ) : (
+                <div className="p-5 text-center text-sm text-gray-500">No repayment schedule available yet.</div>
+              )}
+            </div>
+            <div className="p-4 bg-gray-50 text-center">
+              <button className="text-primary font-bold text-base hover:underline">View Full Schedule</button>
+            </div>
           </div>
-          <div className="p-4 bg-gray-50 text-center">
-            <button className="text-primary font-bold text-base hover:underline">View Full Schedule</button>
-          </div>
-        </div>
+        )}
 
         {/* Action Buttons */}
         <div className="space-y-3">
@@ -282,11 +349,13 @@ export default function LoanDetails() {
             Request Restructuring
           </Button>
           <Button
+            onClick={handleDownloadStatement}
             variant="outline"
+            disabled={isDownloadingStatement}
             className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
           >
             <Download className="w-5 h-5 mr-2" />
-            Download Statement
+            {isDownloadingStatement ? "Downloading..." : "Download Statement"}
           </Button>
         </div>
       </main>

@@ -20,7 +20,7 @@ export function useNotificationBadges(loans: Types.LoanDetails[] = []) {
 
     loans.forEach((loan) => {
       // 1. Pending approval / submitted
-      if (loan.status === 'pending' || loan.status === 'submitted') {
+      if (loan.status === 'pending' || loan.status === 'submitted' || loan.status === 'approved_not_disbursed') {
         dashboardBadge++;
         loansBadge++;
       }

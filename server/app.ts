@@ -163,7 +163,20 @@ let repayments: Array<{
   status: "pending" | "completed" | "failed";
 }> = [];
 
+let paymentTransactions: Array<{
+  id: number;
+  transactionId: string;
+  loanId: number;
+  amount: number;
+  paymentMethod: string;
+  status: "pending" | "completed" | "failed";
+  date: string;
+  reference?: string;
+  description?: string;
+}> = [];
+
 let nextRepaymentId = 1;
+let nextPaymentTransactionId = 1;
 
 const generateRepaymentsForLoan = (loan: any, count: number) => {
   const startDate = new Date(loan.date);
@@ -222,8 +235,9 @@ const getLoanSchedule = (loan: any) => {
 };
 
 app.post("/api/auth/login", (req, res) => {
-  const { email, phone, password } = req.body;
+  const { email, phone, password, pin } = req.body;
   const normalizedPhone = normalizePhone(phone);
+  const providedSecret = password ?? pin;
 
   const user = users.find((item) => {
     if (email && item.email === email) {
@@ -235,15 +249,42 @@ app.post("/api/auth/login", (req, res) => {
     return false;
   });
 
-  if (user && password) {
+  if (user && providedSecret) {
     res.json({
       success: true,
       user: sanitizeUser(user),
       token: `mock-jwt-token-for-${user.id}`,
+      refreshToken: `mock-refresh-token-for-${user.id}`,
     });
   } else {
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
+});
+
+app.post("/api/auth/request-otp", (_req, res) => {
+  res.json({
+    success: true,
+    message: "OTP sent successfully",
+    otpId: `otp-${Date.now()}`,
+  });
+});
+
+app.post("/api/auth/verify-otp", (_req, res) => {
+  const user = getUser();
+  res.json({
+    success: true,
+    user: sanitizeUser(user),
+    token: `mock-jwt-token-for-${user.id}`,
+    refreshToken: `mock-refresh-token-for-${user.id}`,
+  });
+});
+
+app.post("/api/auth/refresh", (_req, res) => {
+  const user = getUser();
+  res.json({
+    token: `mock-jwt-token-for-${user.id}`,
+    refreshToken: `mock-refresh-token-for-${user.id}`,
+  });
 });
 
 app.post("/api/auth/register", (req, res) => {
@@ -318,15 +359,20 @@ app.post("/api/auth/register", (req, res) => {
     loan = newLoan;
   }
 
-  const response = {
+  const response: {
+    success: boolean;
+    message: string;
+    user: ReturnType<typeof sanitizeUser>;
+    loan?: NonNullable<typeof loan>;
+  } = {
     success: true,
     message: "User registered successfully",
     user: sanitizeUser(newUser),
   };
 
   if (loan) {
-    response["loan"] = loan;
-    response["message"] = "User registered and loan application submitted successfully";
+    response.loan = loan;
+    response.message = "User registered and loan application submitted successfully";
   }
 
   res.json(response);
@@ -561,6 +607,218 @@ app.post("/api/repayments", (req, res) => {
   }
 
   res.status(201).json(newRepayment);
+});
+
+// Client contract endpoints (used by `client/src/lib/api-service.ts`).
+app.post("/api/payments/submit", (req, res) => {
+  const { loanId, amount, paymentMethod, reference } = req.body ?? {};
+
+  const numericAmount = Number(amount);
+  if (!loanId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    res.status(422).json({
+      code: "API_ERROR",
+      message: "Validation failed",
+      details: {
+        loanId: !loanId ? ["Loan ID is required"] : undefined,
+        amount: !Number.isFinite(numericAmount) || numericAmount <= 0 ? ["Amount must be greater than 0"] : undefined,
+      },
+    });
+    return;
+  }
+
+  const normalizedLoanId = Number.isNaN(Number(loanId)) ? loanId : Number(loanId);
+  const loan = loans.find((item) => Number(item.id) === Number(normalizedLoanId));
+  if (!loan) {
+    res.status(404).json({ code: "API_ERROR", message: "Loan not found" });
+    return;
+  }
+
+  const repaymentRecord = {
+    id: nextRepaymentId++,
+    loanId: Number(normalizedLoanId),
+    amount: round2(numericAmount),
+    date: toISODate(new Date()),
+    status: "completed" as const,
+  };
+  repayments.push(repaymentRecord);
+
+  const transactionId = `txn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  paymentTransactions.push({
+    id: nextPaymentTransactionId++,
+    transactionId,
+    loanId: Number(normalizedLoanId),
+    amount: round2(numericAmount),
+    paymentMethod: typeof paymentMethod === "string" && paymentMethod.trim().length > 0 ? paymentMethod : "bank_transfer",
+    status: "completed",
+    date: new Date().toISOString(),
+    reference: typeof reference === "string" ? reference : undefined,
+    description: "Loan repayment",
+  });
+
+  const totalRepayment = loan.totalRepayment ?? loan.amount;
+  const currentOutstanding = loan.outstanding ?? totalRepayment;
+  const nextOutstanding = round2(Math.max(0, currentOutstanding - numericAmount));
+  const paidCount = repayments.filter(
+    (repayment) => repayment.loanId === Number(loan.id) && repayment.status === "completed"
+  ).length;
+
+  loan.outstanding = nextOutstanding;
+  loan.progress = calculateProgress(totalRepayment, nextOutstanding);
+  loan.remainingMonths = Math.max(0, (loan.tenure ?? paidCount) - paidCount);
+
+  if (nextOutstanding <= 0 || loan.remainingMonths === 0) {
+    loan.status = "paid";
+    loan.nextPayment = undefined;
+  } else {
+    loan.nextPayment = toISODate(addMonths(new Date(loan.date), paidCount + 1));
+  }
+
+  res.status(201).json({
+    success: true,
+    transactionId,
+    status: "completed",
+    message: "Payment submitted successfully",
+  });
+});
+
+app.get("/api/payments/history/:loanId", (req, res) => {
+  const loanId = req.params.loanId;
+  const normalizedLoanId = Number.isNaN(Number(loanId)) ? loanId : Number(loanId);
+  const loan = loans.find((item) => Number(item.id) === Number(normalizedLoanId));
+  if (!loan) {
+    res.status(404).json({ code: "API_ERROR", message: "Loan not found" });
+    return;
+  }
+
+  const history = paymentTransactions
+    .filter((item) => item.loanId === Number(normalizedLoanId))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((item) => ({
+      id: String(item.id),
+      transactionId: item.transactionId,
+      loanId: String(item.loanId),
+      amount: item.amount,
+      paymentMethod: item.paymentMethod,
+      status: item.status,
+      date: item.date,
+      reference: item.reference ?? item.transactionId,
+      description: item.description ?? "Loan repayment",
+    }));
+
+  res.json(history);
+});
+
+app.post("/api/payments/early-repayment-calculation", (req, res) => {
+  const { loanId, repaymentAmount } = req.body ?? {};
+  const numericAmount = Number(repaymentAmount);
+
+  if (!loanId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    res.status(422).json({
+      code: "API_ERROR",
+      message: "Validation failed",
+      details: {
+        loanId: !loanId ? ["Loan ID is required"] : undefined,
+        repaymentAmount: !Number.isFinite(numericAmount) || numericAmount <= 0 ? ["Repayment amount must be greater than 0"] : undefined,
+      },
+    });
+    return;
+  }
+
+  const normalizedLoanId = Number.isNaN(Number(loanId)) ? loanId : Number(loanId);
+  const loan = loans.find((item) => Number(item.id) === Number(normalizedLoanId));
+  if (!loan) {
+    res.status(404).json({ code: "API_ERROR", message: "Loan not found" });
+    return;
+  }
+
+  const totalPayment = round2(Number(loan.outstanding ?? loan.totalRepayment ?? loan.amount));
+  const earlyPaymentAmount = round2(Math.min(numericAmount, totalPayment));
+
+  res.json({
+    loanId: String(normalizedLoanId),
+    earlyPaymentAmount,
+    interestSaved: 0,
+    newMaturityDate: new Date(loan.date ?? Date.now()).toISOString(),
+    totalPayment,
+  });
+});
+
+app.post("/api/payments/early-repayment", (req, res) => {
+  const { loanId, repaymentAmount } = req.body ?? {};
+  const numericAmount = Number(repaymentAmount);
+
+  if (!loanId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    res.status(422).json({
+      code: "API_ERROR",
+      message: "Validation failed",
+      details: {
+        loanId: !loanId ? ["Loan ID is required"] : undefined,
+        repaymentAmount: !Number.isFinite(numericAmount) || numericAmount <= 0 ? ["Repayment amount must be greater than 0"] : undefined,
+      },
+    });
+    return;
+  }
+
+  const normalizedLoanId = Number.isNaN(Number(loanId)) ? loanId : Number(loanId);
+  const loan = loans.find((item) => Number(item.id) === Number(normalizedLoanId));
+  if (!loan) {
+    res.status(404).json({ code: "API_ERROR", message: "Loan not found" });
+    return;
+  }
+
+  const totalPayment = round2(Number(loan.outstanding ?? loan.totalRepayment ?? loan.amount));
+  const earlyPaymentAmount = round2(Math.min(numericAmount, totalPayment));
+
+  const repaymentRecord = {
+    id: nextRepaymentId++,
+    loanId: Number(normalizedLoanId),
+    amount: earlyPaymentAmount,
+    date: toISODate(new Date()),
+    status: "completed" as const,
+  };
+  repayments.push(repaymentRecord);
+
+  const transactionId = `txn-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  paymentTransactions.push({
+    id: nextPaymentTransactionId++,
+    transactionId,
+    loanId: Number(normalizedLoanId),
+    amount: earlyPaymentAmount,
+    paymentMethod: "early_repayment",
+    status: "completed",
+    date: new Date().toISOString(),
+    reference: transactionId,
+    description: "Early repayment",
+  });
+
+  const currentOutstanding = loan.outstanding ?? totalPayment;
+  const nextOutstanding = round2(Math.max(0, currentOutstanding - earlyPaymentAmount));
+  const paidCount = repayments.filter(
+    (repayment) => repayment.loanId === Number(loan.id) && repayment.status === "completed"
+  ).length;
+
+  loan.outstanding = nextOutstanding;
+  loan.progress = calculateProgress(totalPayment, nextOutstanding);
+  loan.remainingMonths = Math.max(0, (loan.tenure ?? paidCount) - paidCount);
+
+  if (nextOutstanding <= 0 || loan.remainingMonths === 0) {
+    loan.status = "paid";
+    loan.nextPayment = undefined;
+  } else {
+    loan.nextPayment = toISODate(addMonths(new Date(loan.date), paidCount + 1));
+  }
+
+  res.json({
+    success: true,
+    message: "Early repayment submitted successfully",
+    calculation: {
+      loanId: String(normalizedLoanId),
+      earlyPaymentAmount,
+      interestSaved: 0,
+      newMaturityDate: new Date(loan.date ?? Date.now()).toISOString(),
+      totalPayment: nextOutstanding,
+    },
+  });
 });
 
 app.get("/api/health", (_req, res) => {

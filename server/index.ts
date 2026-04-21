@@ -1,20 +1,19 @@
 import express from "express";
 import { createServer } from "http";
+import fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import app from "./app";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
-  const app = express();
   const server = createServer(app);
 
-  // Serve static files from dist/public in production
-  const staticPath =
-    process.env.NODE_ENV === "production"
-      ? path.resolve(__dirname, "public")
-      : path.resolve(__dirname, "..", "dist", "public");
+  const bundledStaticPath = path.resolve(__dirname, "public");
+  const fallbackStaticPath = path.resolve(__dirname, "..", "dist", "public");
+  const staticPath = fs.existsSync(bundledStaticPath) ? bundledStaticPath : fallbackStaticPath;
 
   app.use(express.static(staticPath));
 

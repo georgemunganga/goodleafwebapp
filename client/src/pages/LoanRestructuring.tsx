@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loanService, restructuringService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
+import { isActiveLoanStatus } from "@/lib/loan-status";
 import { AlertCircle, CheckCircle2, ChevronLeft } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
@@ -28,7 +29,7 @@ export default function LoanRestructuring() {
       try {
         setIsLoading(true);
         const loans = await loanService.getUserLoans();
-        const activeLoan = loans.find((loan) => loan.status === "active") || loans[0];
+        const activeLoan = loans.find((loan) => isActiveLoanStatus(loan.status));
         if (!activeLoan) {
           setError("No loan found to restructure.");
           return;
@@ -71,7 +72,7 @@ export default function LoanRestructuring() {
 
     try {
       const response = await restructuringService.requestRestructuring({
-        loanId: loanInfo.id,
+        loanId: loanInfo.loanId,
         newRepaymentMonths: parseInt(proposedTenure || "0", 10),
         reason: `${reason}: ${explanation}`,
       });

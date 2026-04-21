@@ -17,10 +17,10 @@ export function usePersistentQuery<TQueryFnData, TData = TQueryFnData, TError = 
   options: PersistentQueryOptions<TQueryFnData, TData, TError>,
 ): UseQueryResult<TData, TError> {
   const { storageKey, persist = true, ...queryOptions } = options;
-  const cached = storageKey && persist ? readPersistedCache<TData>(storageKey) : null;
+  const cached = storageKey && persist ? readPersistedCache<TQueryFnData>(storageKey) : null;
 
-  const queryResult = useQuery({
-    ...queryOptions,
+  const queryResult = useQuery<TQueryFnData, TError, TData>({
+    ...(queryOptions as UseQueryOptions<TQueryFnData, TError, TData>),
     ...(cached
       ? {
           initialData: cached.data,

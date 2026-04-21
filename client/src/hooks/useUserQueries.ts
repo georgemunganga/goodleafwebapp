@@ -3,6 +3,7 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { kycService, notificationService, securityService, userService } from '@/lib/api-service';
 import * as Types from '@/lib/api-types';
 import { buildCacheKey, writePersistedCache } from '@/lib/persisted-cache';
+import { sessionManager } from '@/lib/session-manager';
 import { queryKeys } from './query-keys';
 import { usePersistentQuery } from './usePersistentQuery';
 
@@ -38,6 +39,22 @@ export function useUpdateUserProfile() {
       if (storageKey) {
         writePersistedCache(storageKey, response.user);
       }
+      const currentUser = sessionManager.getUser();
+      if (currentUser) {
+        sessionManager.saveUser({
+          ...currentUser,
+          firstName: response.user.firstName ?? currentUser.firstName,
+          lastName: response.user.lastName ?? currentUser.lastName,
+          email: response.user.email ?? currentUser.email,
+          phone: response.user.phone ?? currentUser.phone,
+          address: response.user.address ?? currentUser.address,
+          avatar: response.user.avatar ?? null,
+          name:
+            [response.user.firstName, response.user.lastName].filter(Boolean).join(' ').trim() ||
+            currentUser.name,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.profile(user?.id) });
     },
   });
 }

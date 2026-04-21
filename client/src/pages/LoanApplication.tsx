@@ -853,7 +853,10 @@ export default function LoanApplication() {
   const handleLoanAmountChange = (event: ChangeEvent<HTMLInputElement>) => {
     const rawValue = event.target.valueAsNumber;
     if (Number.isNaN(rawValue)) return;
-    applyLoanAmountClamp(rawValue, { pulseOnClamp: true, allowFallback: false });
+
+    if (rawValue > activeConstraints.principalMax) {
+      setAmountRangePulse((value) => value + 1);
+    }
   };
 
   const handleRepaymentTermChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1167,6 +1170,11 @@ export default function LoanApplication() {
     setShowRecoveryModal(false);
   };
 
+  const handleRecoveryCancel = () => {
+    setRecoveryDecisionMade(true);
+    setShowRecoveryModal(false);
+  };
+
   return (
     <>
       <FormRecoveryModal
@@ -1175,6 +1183,7 @@ export default function LoanApplication() {
         savedTimestamp={savedDataInfo?.timestamp}
         onResume={handleRecoveryResume}
         onStartFresh={handleRecoveryStartFresh}
+        onCancel={handleRecoveryCancel}
       />
       <OTPVerificationModal
         isOpen={otpModalOpen}
@@ -1198,7 +1207,7 @@ export default function LoanApplication() {
                   phone: pendingLogin.phone,
                   pin: pendingLogin.pin,
                 });
-                if (!response?.success || !response.otpId) {
+                if (!response?.success || !('otpId' in response) || !response.otpId) {
                   throw new Error(response?.message || 'Failed to resend OTP');
                 }
                 auth.seedOtp(response.otpId, pendingLogin.email, pendingLogin.phone);

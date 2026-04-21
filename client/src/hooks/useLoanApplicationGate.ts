@@ -6,7 +6,7 @@ import type { LoanDetails } from "@/lib/api-types";
  * Loan statuses that block new applications
  * Users with loans in these statuses should not see "Apply for Loan" options
  */
-const BLOCKED_STATUSES: LoanDetails["status"][] = ["submitted", "pending"];
+const BLOCKED_STATUSES: LoanDetails["status"][] = ["submitted", "pending", "under_review", "approved_not_disbursed"];
 
 /**
  * Hook to determine if a user can apply for a new loan
@@ -22,7 +22,7 @@ export function useLoanApplicationGate() {
   const { data: loans = [], isLoading } = useUserLoans();
 
   const gateInfo = useMemo(() => {
-    // Find any loan that is in a blocked status (submitted or pending)
+    // Find any loan that is in a blocked status (submitted, pending, or under review)
     const inProgressLoan = loans.find((loan) =>
       BLOCKED_STATUSES.includes(loan.status)
     ) || null;

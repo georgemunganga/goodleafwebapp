@@ -6,6 +6,7 @@ import * as Types from '@/lib/api-types';
 import { queryKeys } from './query-keys';
 import { usePersistentQuery } from './usePersistentQuery';
 import { buildCacheKey } from '@/lib/persisted-cache';
+import { isActiveLoanStatus } from '@/lib/loan-status';
 
 /**
  * Loan Query Hooks
@@ -20,11 +21,14 @@ export function useUserLoans() {
   return usePersistentQuery({
     queryKey: queryKeys.loans.list({ userId: user?.id }),
     queryFn: async () => loanService.getUserLoans(),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 0,
     gcTime: 15 * 60 * 1000, // 15 minutes
     enabled: isAuthenticated,
     storageKey: cacheKey,
     persist: Boolean(cacheKey),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: isAuthenticated ? 60 * 1000 : false,
   });
 }
 
@@ -33,11 +37,7 @@ export function useActiveLoans() {
   const loansQuery = useUserLoans();
   const activeLoans = useMemo(() => {
     const loans = loansQuery.data ?? [];
-    return loans.filter((loan) =>
-      loan.status === 'active' ||
-      loan.status === 'pending_approval' ||
-      loan.status === 'approved_not_disbursed'
-    );
+    return loans.filter((loan) => isActiveLoanStatus(loan.status));
   }, [loansQuery.data]);
 
   return {
@@ -85,12 +85,13 @@ export function useRepaymentSchedule(loanId: string) {
 
 // Get available loan config/products
 export function useLoanConfig() {
-  return usePersistentQuery({
+  return useQuery({
     queryKey: queryKeys.loans.config(),
     queryFn: async () => loanService.getLoanConfig(),
-    staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 2 * 60 * 60 * 1000, // 2 hours
-    storageKey: buildCacheKey('loan-config'),
+    staleTime: 0,
+    gcTime: 30 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -138,12 +138,12 @@ export const sessionManager = {
       }
 
       // Call refresh endpoint using centralized API config
-      const data = await apiCall('/auth/refresh', {
+      const data = await apiCall<{ token: string; refreshToken?: string }>('/auth/refresh', {
         method: 'POST',
         body: JSON.stringify({ refreshToken }),
       });
 
-      this.saveTokens(data.token, data.refreshToken);
+      this.saveTokens(data.token, data.refreshToken ?? data.token);
       return true;
     } catch (error) {
       console.error('Token refresh failed:', error);

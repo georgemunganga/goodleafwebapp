@@ -5,7 +5,10 @@ import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, ChevronDow
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
 import { useUserLoans } from "@/hooks/useLoanQueries";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
+import { useKycStatus, useUserProfile } from "@/hooks/useUserQueries";
+import { useAuthContext } from "@/contexts/AuthContext";
 import * as Types from "@/lib/api-types";
+import { getDashboardLoanStatus, type DashboardLoanStatus } from "@/lib/loan-status";
 
 /**
  * Dashboard Page - Enhanced with Loan Status Variations & Real API Integration
@@ -19,19 +22,8 @@ import * as Types from "@/lib/api-types";
  */
 
 // Loan status types for display
-type DisplayLoanStatus =
-  | "active"
-  | "submitted"
-  | "pending_approval"
-  | "declined"
-  | "pending_kyc"
-  | "kyc_rejected"
-  | "approved_not_disbursed"
-  | "overdue"
-  | "completed";
-
 interface DisplayLoan extends Types.LoanDetails {
-  displayStatus: DisplayLoanStatus;
+  displayStatus: DashboardLoanStatus;
 }
 
 interface Recommendation {
@@ -45,9 +37,26 @@ interface Recommendation {
   priority: "high" | "medium" | "low";
 }
 
+const REQUIRED_KYC_DOCUMENT_TYPES = ["id", "proof_of_income", "bank_statement", "utility_bill"] as const;
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const [selectedLoanStatus, setSelectedLoanStatus] = useState<DisplayLoanStatus | null>(null);
+  const { user } = useAuthContext();
+  const profileQuery = useUserProfile();
+  const profile = profileQuery.data ?? null;
+  const kycStatusQuery = useKycStatus();
+  const hasSubmittedAllKycDocuments = useMemo(() => {
+    const submittedTypes = new Set(
+      (kycStatusQuery.data?.documents ?? [])
+        .filter((document) => document.status !== "rejected")
+        .map((document) => document.type),
+    );
+
+    return REQUIRED_KYC_DOCUMENT_TYPES.every((documentType) => submittedTypes.has(documentType));
+  }, [kycStatusQuery.data?.documents]);
+  const isKycCompleted =
+    kycStatusQuery.data?.status === "completed" || hasSubmittedAllKycDocuments;
+  const [selectedLoanStatus, setSelectedLoanStatus] = useState<DashboardLoanStatus | null>(null);
   const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
   const loansQuery = useUserLoans();
   const isLoading = loansQuery.isLoading;
@@ -61,32 +70,36 @@ export default function Dashboard() {
     const data = loansQuery.data ?? [];
     return data.map((loan) => ({
       ...loan,
-      displayStatus: mapLoanStatus(loan.status),
+      displayStatus: getDashboardLoanStatus(loan.status),
     })) as DisplayLoan[];
   }, [loansQuery.data]);
 
   // Get notification badges
   const badges = useNotificationBadges(loansQuery.data ?? []);
 
-  // Map API loan status to display status
-  function mapLoanStatus(apiStatus: Types.LoanDetails['status']): DisplayLoanStatus {
-    switch (apiStatus) {
-      case 'submitted':
-        return 'submitted';
-      case 'active':
-        return 'active';
-      case 'completed':
-        return 'completed';
-      case 'pending':
-        return 'pending_approval';
-      case 'rejected':
-        return 'declined';
-      case 'defaulted':
-        return 'overdue';
-      default:
-        return 'pending_approval';
-    }
-  }
+  const customerName = useMemo(() => {
+    const profileName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
+    if (profileName) return profileName;
+
+    const authName = user?.name?.trim();
+    if (authName) return authName;
+
+    const authPartsName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    if (authPartsName) return authPartsName;
+
+    return "Customer";
+  }, [profile?.firstName, profile?.lastName, user?.firstName, user?.lastName, user?.name]);
+
+  const customerInitials = useMemo(() => {
+    const initialsSource = profile
+      ? `${profile.firstName?.[0] || ""}${profile.lastName?.[0] || ""}`
+      : `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`;
+
+    const normalizedInitials = initialsSource.toUpperCase();
+    if (normalizedInitials) return normalizedInitials;
+
+    return customerName.slice(0, 2).toUpperCase();
+  }, [customerName, profile, user?.firstName, user?.lastName]);
 
   const parseDate = (value?: string | null): Date | null => {
     if (!value) return null;
@@ -135,6 +148,79 @@ export default function Dashboard() {
     return `${numeric} month${numeric === 1 ? "" : "s"}`;
   };
 
+  const recentActivity = useMemo(() => {
+    const activities = loans.flatMap((loan) => {
+      const items: Array<{
+        id: string;
+        title: string;
+        amount: string;
+        dateLabel: string;
+        sortTime: number;
+        icon: typeof CheckCircle2;
+        color: string;
+      }> = [];
+
+      const createdAt = parseDate(loan.createdAt);
+      const lastPaymentDate = parseDate(loan.lastPaymentDate);
+      const nextPaymentDate = parseDate(loan.nextPaymentDate);
+
+      if ((loan.status === "submitted" || loan.status === "under_review") && createdAt) {
+        items.push({
+          id: `application-${loan.id}`,
+          title: loan.status === "under_review" ? "Application Under Review" : "Application Submitted",
+          amount: formatCurrency(loan.loanAmount),
+          dateLabel: formatDate(loan.createdAt, { month: "short", day: "numeric", year: "numeric" }),
+          sortTime: createdAt.getTime(),
+          icon: loan.status === "under_review" ? Clock : FileText,
+          color: loan.status === "under_review" ? "text-blue-600 bg-blue-50" : "text-primary bg-primary/10",
+        });
+      }
+
+      const approvalDate = parseDate(loan.approvalDate);
+      if (loan.status === "approved_not_disbursed" && approvalDate) {
+        items.push({
+          id: `approved-${loan.id}`,
+          title: "Loan Approved",
+          amount: formatCurrency(loan.loanAmount),
+          dateLabel: formatDate(loan.approvalDate, { month: "short", day: "numeric", year: "numeric" }),
+          sortTime: approvalDate.getTime(),
+          icon: CheckCircle2,
+          color: "text-emerald-600 bg-emerald-50",
+        });
+      }
+
+      if (loan.status === "active" && lastPaymentDate) {
+        items.push({
+          id: `payment-${loan.id}`,
+          title: "Payment Received",
+          amount: formatCurrency(loan.lastPaymentAmount ?? loan.monthlyPayment),
+          dateLabel: formatDate(loan.lastPaymentDate, { month: "short", day: "numeric", year: "numeric" }),
+          sortTime: lastPaymentDate.getTime(),
+          icon: CheckCircle2,
+          color: "text-green-600 bg-green-50",
+        });
+      }
+
+      if (loan.status === "active" && nextPaymentDate) {
+        items.push({
+          id: `due-${loan.id}`,
+          title: "Upcoming Payment",
+          amount: formatCurrency(loan.monthlyPayment),
+          dateLabel: formatDate(loan.nextPaymentDate, { month: "short", day: "numeric", year: "numeric" }),
+          sortTime: nextPaymentDate.getTime(),
+          icon: Clock,
+          color: "text-amber-600 bg-amber-50",
+        });
+      }
+
+      return items;
+    });
+
+    return activities
+      .sort((a, b) => b.sortTime - a.sortTime)
+      .slice(0, 4);
+  }, [loans]);
+
   if (isLoading) {
     return <PageSkeletonLoader />;
   }
@@ -148,6 +234,7 @@ export default function Dashboard() {
     : loans;
 
   const activeLoan = loans.find(loan => loan.displayStatus === "active");
+  const approvedLoan = loans.find(loan => loan.displayStatus === "approved_not_disbursed");
   const overdueLoan = loans.find(loan => loan.displayStatus === "overdue");
   const inProgressLoan = loans
     .filter((loan) => loan.displayStatus === "submitted" || loan.displayStatus === "pending_approval")
@@ -157,19 +244,25 @@ export default function Dashboard() {
       return timeB - timeA;
     })[0];
   const hasEstablishedLoan = loans.some(
-    (loan) => loan.displayStatus === "active" || loan.displayStatus === "overdue" || loan.displayStatus === "completed"
+    (loan) =>
+      loan.displayStatus === "approved_not_disbursed" ||
+      loan.displayStatus === "active" ||
+      loan.displayStatus === "overdue" ||
+      loan.displayStatus === "completed"
   );
   const isSubmittedOnlyUser = Boolean(inProgressLoan) && !hasEstablishedLoan;
   const totalOutstanding = loans
-    .filter((loan) => loan.displayStatus === "active")
+    .filter((loan) => loan.displayStatus === "active" || loan.displayStatus === "approved_not_disbursed")
     .reduce((sum, loan) => sum + (loan.amountRemaining || 0), 0);
-  const activeProgressWidth = activeLoan
-    ? ((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100
+  const primaryOpenLoan = activeLoan ?? approvedLoan;
+  const activeProgressWidth = primaryOpenLoan
+    ? ((primaryOpenLoan.amountPaid || 0) / (primaryOpenLoan.loanAmount || 1)) * 100
     : 0;
-  const activeProgressPercent = activeLoan
-    ? Math.round(((activeLoan.amountPaid || 0) / (activeLoan.loanAmount || 1)) * 100)
+  const activeProgressPercent = primaryOpenLoan
+    ? Math.round(((primaryOpenLoan.amountPaid || 0) / (primaryOpenLoan.loanAmount || 1)) * 100)
     : 0;
-  const applicationStage = inProgressLoan?.displayStatus === "pending_approval" ? "review" : "kyc";
+  const applicationStage =
+    inProgressLoan?.displayStatus === "pending_approval" || isKycCompleted ? "review" : "kyc";
   const applicationSteps = inProgressLoan
     ? [
         {
@@ -204,7 +297,7 @@ export default function Dashboard() {
     const recommendations: Recommendation[] = [];
 
     // Check if user has no active or in-progress applications
-    const inProgressStatuses: DisplayLoanStatus[] = ["submitted", "pending_approval"];
+    const inProgressStatuses: DashboardLoanStatus[] = ["submitted", "pending_approval"];
     const hasInProgressLoans = loans.some((loan) => inProgressStatuses.includes(loan.displayStatus));
     const hasEstablishedLoans = hasEstablishedLoan;
     if (!activeLoan && !hasInProgressLoans && !hasEstablishedLoans) {
@@ -225,7 +318,7 @@ export default function Dashboard() {
       (loan) => loan.displayStatus === "submitted" || loan.displayStatus === "pending_approval"
     );
     if (pendingLoan) {
-      const isSubmitted = pendingLoan.displayStatus === "submitted";
+      const isSubmitted = pendingLoan.displayStatus === "submitted" && !isKycCompleted;
       const pendingCategory = pendingLoan.loanCategory || "loan";
       const pendingTitle = isSubmitted ? "Complete Your Verification" : "Application Under Review";
       const pendingDescription =
@@ -241,6 +334,22 @@ export default function Dashboard() {
         actionPath: isSubmitted ? "/kyc" : "/loans",
         color: isSubmitted ? "from-amber-50 to-yellow-50" : "from-blue-50 to-cyan-50",
         priority: isSubmitted ? "high" : "medium"
+      });
+    }
+
+    const approvedPendingDisbursementLoan = loans.find(
+      (loan) => loan.displayStatus === "approved_not_disbursed"
+    );
+    if (approvedPendingDisbursementLoan) {
+      recommendations.push({
+        id: "approved-loan",
+        title: "Your Loan Has Been Approved",
+        description: `${approvedPendingDisbursementLoan.loanId} is approved and waiting for disbursement.`,
+        icon: CheckCircle2,
+        action: "View Loan",
+        actionPath: `/loans/${approvedPendingDisbursementLoan.id}`,
+        color: "from-emerald-50 to-green-50",
+        priority: "high"
       });
     }
 
@@ -335,7 +444,7 @@ export default function Dashboard() {
     ? recommendations.filter((rec) => rec.id !== "complete-kyc")
     : recommendations;
 
-  const loanStatusConfig: Record<DisplayLoanStatus, { label: string; badgeClass: string }> = {
+  const loanStatusConfig: Record<DashboardLoanStatus, { label: string; badgeClass: string }> = {
     active: { label: "Active", badgeClass: "bg-green-100 text-green-700" },
     submitted: { label: "Submitted", badgeClass: "bg-amber-100 text-amber-800" },
     pending_approval: { label: "Pending", badgeClass: "bg-blue-100 text-blue-700" },
@@ -354,8 +463,8 @@ export default function Dashboard() {
       loan.loanCategory || (normalizedLoanType !== "-" ? normalizedLoanType : "Loan Application");
     const statusMeta = loanStatusConfig[loan.displayStatus] ?? loanStatusConfig.pending_approval;
     const isActive = loan.displayStatus === "active" || loan.displayStatus === "overdue";
-    const dateLabel = isActive ? "Next Due" : "Applied";
-    const dateValue = isActive ? loan.nextPaymentDate : loan.createdAt;
+    const dateLabel = isActive ? "Next Due" : loan.displayStatus === "approved_not_disbursed" ? "Approved" : "Applied";
+    const dateValue = isActive ? loan.nextPaymentDate : loan.displayStatus === "approved_not_disbursed" ? loan.approvalDate : loan.createdAt;
     const loanKey = loan.id.toString();
     const isExpanded = expandedLoanId === loanKey;
     const detailsId = `loan-details-${loanKey}`;
@@ -366,6 +475,12 @@ export default function Dashboard() {
     })();
     const statusDetails = (() => {
       switch (loan.displayStatus) {
+        case "approved_not_disbursed":
+          return [
+            { label: "Approved On", value: formatDate(loan.approvalDate, { month: "short", day: "numeric" }) },
+            { label: "Status", value: "Approved" },
+            { label: "Disbursement", value: "Pending release" },
+          ];
         case "active":
           return [
             { label: "Installment", value: formatCurrency(loan.monthlyPayment) },
@@ -473,27 +588,6 @@ export default function Dashboard() {
 
   const quickActions = isSubmittedOnlyUser ? submittedQuickActions : defaultQuickActions;
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: "payment",
-      title: "Payment Received",
-      amount: "K916.67",
-      date: "Dec 20, 2024",
-      icon: CheckCircle2,
-      color: "text-green-600 bg-green-50"
-    },
-    {
-      id: 2,
-      type: "due",
-      title: "Upcoming Payment",
-      amount: "K916.67",
-      date: "Jan 31, 2025",
-      icon: Clock,
-      color: "text-amber-600 bg-amber-50"
-    }
-  ];
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header - Green gradient */}
@@ -503,11 +597,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30">
-                <span className="text-lg font-bold text-white">JD</span>
+                <span className="text-lg font-bold text-white">{customerInitials}</span>
               </div>
               <div>
                 <p className="text-white/70 text-sm">Good morning,</p>
-                <h1 className="text-white font-bold text-xl">John Doe</h1>
+                <h1 className="text-white font-bold text-xl">{customerName}</h1>
               </div>
             </div>
             <button className="w-11 h-11 bg-white/10 rounded-full flex items-center justify-center relative hover:bg-white/20 transition-colors">
@@ -749,12 +843,13 @@ export default function Dashboard() {
             >
               All ({loans.length})
             </button>
-            {["active", "submitted", "pending_approval", "declined", "overdue", "completed"].map((status) => {
+            {["active", "approved_not_disbursed", "submitted", "pending_approval", "declined", "overdue", "completed"].map((status) => {
               const count = loans.filter(l => l.displayStatus === status).length;
               if (count === 0) return null;
               
               const statusLabels: Record<string, string> = {
                 active: "Active",
+                approved_not_disbursed: "Approved",
                 submitted: "Submitted",
                 pending_approval: "Pending",
                 declined: "Declined",
@@ -765,7 +860,7 @@ export default function Dashboard() {
               return (
                 <button
                   key={status}
-                  onClick={() => setSelectedLoanStatus(status as DisplayLoanStatus)}
+                  onClick={() => setSelectedLoanStatus(status as DashboardLoanStatus)}
                   className={`px-4 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
                     selectedLoanStatus === status
                       ? "bg-primary text-white"
@@ -831,24 +926,28 @@ export default function Dashboard() {
         <div>
           <h2 className="font-bold text-gray-900 text-lg mb-3">Recent Activity</h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
-            {recentActivity.map((activity) => {
-              const Icon = activity.icon;
-              return (
-                <div
-                  key={activity.id}
-                  className="flex items-center gap-4 p-4"
-                >
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${activity.color}`}>
-                    <Icon className="w-5 h-5" />
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity) => {
+                const Icon = activity.icon;
+                return (
+                  <div
+                    key={activity.id}
+                    className="flex items-center gap-4 p-4"
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${activity.color}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{activity.title}</p>
+                      <p className="text-sm text-gray-500">{activity.dateLabel}</p>
+                    </div>
+                    <p className="font-bold text-gray-900">{activity.amount}</p>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">{activity.title}</p>
-                    <p className="text-sm text-gray-500">{activity.date}</p>
-                  </div>
-                  <p className="font-bold text-gray-900">{activity.amount}</p>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="p-4 text-sm text-gray-500">No recent activity for this account yet.</div>
+            )}
           </div>
         </div>
       </main>

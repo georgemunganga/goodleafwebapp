@@ -9,6 +9,11 @@ import { authService } from '@/lib/api-service';
 import { sessionManager } from '@/lib/session-manager';
 import { auditLogger, AuditEventType } from '@/lib/audit-logger';
 
+const isLoginResponse = (
+  response: Types.LoginResponse | Types.LoginOTPResponse
+): response is Types.LoginResponse =>
+  'token' in response && typeof response.token === 'string' && 'user' in response;
+
 interface AuthContextType {
   user: Types.LoginResponse['user'] | null;
   token: string | null;
@@ -93,9 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const response = await authService.login(request);
 
-        if ('token' in response && response.token) {
+        if (isLoginResponse(response)) {
           // Save tokens and user data using session manager
-          sessionManager.saveTokens(response.token, response.refreshToken);
+          sessionManager.saveTokens(response.token, response.refreshToken || response.token);
           sessionManager.saveUser(response.user);
 
           setToken(response.token);
@@ -186,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!otpId) throw new Error('No OTP ID found');
         const response = await authService.verifyOTP({ otpId, otp });
         if (response.success) {
-          sessionManager.saveTokens(response.token, response.refreshToken);
+          sessionManager.saveTokens(response.token, response.refreshToken || response.token);
           sessionManager.saveUser(response.user);
           setToken(response.token);
           setUser(response.user);
