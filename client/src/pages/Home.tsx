@@ -12,6 +12,7 @@ import { ArrowRight, CheckCircle2, Leaf } from "lucide-react";
  */
 export default function Home() {
   const [, setLocation] = useLocation();
+  const goToEligibility = () => setLocation("/check-eligibility");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50">
@@ -33,7 +34,7 @@ export default function Home() {
               Home
             </button>
             <button 
-              onClick={() => setLocation("/eligibility-checker")}
+              onClick={goToEligibility}
               className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
             >
               Check Eligibility
@@ -92,7 +93,7 @@ export default function Home() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => setLocation("/eligibility-checker")}
+              onClick={goToEligibility}
               className="rounded-full px-8 py-3 text-lg font-semibold border-2 border-primary text-primary hover:bg-primary/5"
             >
               Check Eligibility
@@ -229,7 +230,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => setLocation("/eligibility-checker")}
+              onClick={goToEligibility}
               className="rounded-full bg-white text-primary hover:bg-slate-100 px-8 py-3 text-lg font-semibold"
             >
               Check Eligibility
@@ -264,23 +265,23 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li><button onClick={() => setLocation("/apply")} className="hover:text-primary">Personal Loans</button></li>
                 <li><button onClick={() => setLocation("/apply")} className="hover:text-primary">Business Loans</button></li>
-                <li><button onClick={() => setLocation("/eligibility-checker")} className="hover:text-primary">Check Eligibility</button></li>
+                <li><button onClick={goToEligibility} className="hover:text-primary">Check Eligibility</button></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-slate-900 mb-4">Support</h4>
               <ul className="space-y-2 text-sm text-slate-600">
-                <li><a href="#" className="hover:text-primary">Help Center</a></li>
-                <li><a href="#" className="hover:text-primary">Contact Us</a></li>
-                <li><a href="#" className="hover:text-primary">FAQ</a></li>
+                <li><button onClick={() => setLocation("/login")} className="hover:text-primary">Help Center</button></li>
+                <li><button onClick={() => setLocation("/login")} className="hover:text-primary">Contact Us</button></li>
+                <li><button onClick={goToEligibility} className="hover:text-primary">FAQ</button></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-slate-900 mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-slate-600">
-                <li><a href="#" className="hover:text-primary">Terms & Conditions</a></li>
-                <li><a href="#" className="hover:text-primary">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-primary">Disclaimer</a></li>
+                <li><button onClick={() => setLocation("/terms")} className="hover:text-primary">Terms & Conditions</button></li>
+                <li><button onClick={() => setLocation("/privacy")} className="hover:text-primary">Privacy Policy</button></li>
+                <li><button onClick={() => setLocation("/terms")} className="hover:text-primary">Disclaimer</button></li>
               </ul>
             </div>
           </div>

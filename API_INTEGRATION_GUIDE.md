@@ -73,7 +73,7 @@ This document outlines the API integration architecture for the Goodleaf Loans w
 
 ```env
 # API Configuration
-VITE_API_URL=https://admin.goodleafcapital.com/api
+VITE_API_URL=https://admin.capexfinancialservices.org/api/v1
 
 # Demo Mode (uses mock data instead of real API)
 VITE_USAGE_DEMO=false
@@ -120,7 +120,7 @@ VITE_USAGE_DEMO=false
 ### 1. Update Environment Variables
 Set `VITE_API_URL` to your backend API base URL:
 ```bash
-VITE_API_URL=https://api.goodleaf.com/api
+VITE_API_URL=https://admin.capexfinancialservices.org/api/v1
 ```
 
 ### 2. Implement Backend Endpoints

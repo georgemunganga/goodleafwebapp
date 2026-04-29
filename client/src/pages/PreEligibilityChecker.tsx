@@ -5,6 +5,7 @@ import { useState } from "react";
 import { loanService } from "@/lib/api-service";
 import * as Types from "@/lib/api-types";
 import { useLoanApplicationGate } from "@/hooks/useLoanApplicationGate";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 /**
  * Pre-Eligibility Checker Page
@@ -21,6 +22,8 @@ export default function PreEligibilityChecker() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { canApply, inProgressLoan } = useLoanApplicationGate();
+  const { isAuthenticated } = useAuthContext();
+  const backPath = isAuthenticated ? "/dashboard" : "/";
 
   const [formData, setFormData] = useState({
     loanType: "personal",
@@ -183,10 +186,10 @@ export default function PreEligibilityChecker() {
                   </div>
                 )}
                 <Button
-                  onClick={() => setLocation("/dashboard")}
+                  onClick={() => setLocation(backPath)}
                   className="w-full h-12 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold text-base rounded-xl"
                 >
-                  Return to Dashboard
+                  {isAuthenticated ? "Return to Dashboard" : "Return Home"}
                 </Button>
               </>
             )}
@@ -202,7 +205,7 @@ export default function PreEligibilityChecker() {
       <header className="bg-gradient-to-r from-[#2e7146] to-[#1d4a2f] text-white flex-shrink-0">
         <div className="px-5 pt-6 pb-6 w-full">
           <button
-            onClick={() => setLocation("/dashboard")}
+            onClick={() => setLocation(backPath)}
             className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
           >
             <ArrowLeft className="w-5 h-5" />

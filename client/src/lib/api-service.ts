@@ -149,6 +149,47 @@ const normalizeNotificationSettings = (response: unknown): Types.NotificationSet
   };
 };
 
+const normalizeActiveSession = (session: Record<string, unknown>): Types.ActiveSession => {
+  const id = typeof session.id === 'string' ? session.id : String(session.id ?? '');
+  const lastActive =
+    (typeof session.lastActive === 'string' && session.lastActive) ||
+    (typeof session.lastUsedAt === 'string' && session.lastUsedAt) ||
+    (typeof session.createdAt === 'string' && session.createdAt) ||
+    new Date().toISOString();
+
+  return {
+    id,
+    device:
+      (typeof session.device === 'string' && session.device) ||
+      (typeof session.name === 'string' && session.name) ||
+      'Unknown Device',
+    browser: typeof session.browser === 'string' ? session.browser : undefined,
+    location:
+      (typeof session.location === 'string' && session.location) ||
+      'Unknown location',
+    ipAddress: typeof session.ipAddress === 'string' ? session.ipAddress : undefined,
+    lastActive,
+    isCurrent: Boolean(session.isCurrent),
+  };
+};
+
+const normalizeContactSupportResponse = (response: unknown): Types.ContactSupportResponse => {
+  const payload = response && typeof response === 'object' ? response as Record<string, unknown> : {};
+  const data = payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : {};
+  const ticketId =
+    (typeof payload.ticketId === 'string' && payload.ticketId) ||
+    (typeof data.ticketId === 'string' && data.ticketId) ||
+    '';
+
+  return {
+    success: Boolean(payload.success),
+    ticketId,
+    message:
+      (typeof payload.message === 'string' && payload.message) ||
+      'Support request submitted',
+  };
+};
+
 const normalizeRange = (range: any): Types.LoanConfigRange => ({
   min: toOptionalNumber(range?.min),
   default: toOptionalNumber(range?.default),
@@ -1226,7 +1267,7 @@ export const securityService = {
       ];
     }
     const response = await apiCall<unknown>('/security/sessions');
-    return extractDataArray<Types.ActiveSession>(response);
+    return extractDataArray<Record<string, unknown>>(response).map(normalizeActiveSession);
   },
 
   async signOutSession(sessionId: string): Promise<Types.SignOutSessionResponse> {
@@ -1265,10 +1306,11 @@ export const supportService = {
         message: 'Your message has been received. We will get back to you shortly.',
       };
     }
-    return apiCall('/support/contact', {
+    const response = await apiCall<unknown>('/support/contact', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+    return normalizeContactSupportResponse(response);
   },
 
   async getTickets(): Promise<Types.SupportTicket[]> {

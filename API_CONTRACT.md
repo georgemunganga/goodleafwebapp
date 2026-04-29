@@ -5,7 +5,7 @@ used by the client app (`client/`). It matches the types in `client/src/lib/api-
 and the service calls in `client/src/lib/api-service.ts`.
 
 Base URL:
-- `VITE_API_URL` (default: `https://admin.goodleafcapital.com/api`)
+- `VITE_API_URL` (default: `https://admin.capexfinancialservices.org/api/v1`)
 
 Auth:
 - Protected endpoints expect `Authorization: Bearer <access_token>`.

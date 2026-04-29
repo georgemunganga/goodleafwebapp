@@ -40,6 +40,7 @@ import Settings from "./pages/Settings";
 import PaymentHistory from "./pages/PaymentHistory";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import { useAuthContext } from "./contexts/AuthContext";
 
 // Helper component that wraps content with both ProtectedRoute and AppLayout
 function ProtectedPage({ children }: { children: React.ReactNode }) {
@@ -50,10 +51,33 @@ function ProtectedPage({ children }: { children: React.ReactNode }) {
   );
 }
 
+function RootRoute() {
+  const { isAuthenticated, loading } = useAuthContext();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <ProtectedPage>
+        <Dashboard />
+      </ProtectedPage>
+    );
+  }
+
+  return <Home />;
+}
+
 function Router() {
   return (
     <Switch>
       {/* Public Routes - No AppLayout */}
+      <Route path={"/"} component={RootRoute} />
       <Route path={"/login"} component={Login} />
       <Route path={"/set-pin"} component={SetPin} />
       <Route path={"/forgot-pin"} component={ForgotPIN} />
@@ -61,6 +85,8 @@ function Router() {
       <Route path={"/privacy"} component={Privacy} />
       <Route path={"/apply"} component={LoanApplication} />
       <Route path={"/apply-success"} component={LoanApplicationSuccess} />
+      <Route path={"/check-eligibility"} component={PreEligibilityChecker} />
+      <Route path={"/eligibility-checker"} component={PreEligibilityChecker} />
 
       {/* Protected Routes - With AppLayout (sidebar + bottom nav) */}
       <Route path={"/dashboard"} component={() => <ProtectedPage><Dashboard /></ProtectedPage>} />
@@ -74,13 +100,10 @@ function Router() {
       <Route path={"/settings"} component={() => <ProtectedPage><Settings /></ProtectedPage>} />
       <Route path={"/security"} component={() => <ProtectedPage><SecuritySettings /></ProtectedPage>} />
       <Route path={"/help"} component={() => <ProtectedPage><HelpSupport /></ProtectedPage>} />
-      <Route path={"/check-eligibility"} component={() => <ProtectedPage><PreEligibilityChecker /></ProtectedPage>} />
       <Route path={"/kyc"} component={() => <ProtectedPage><KYCWorkflow /></ProtectedPage>} />
       <Route path={"/repayment"} component={() => <ProtectedPage><RepaymentSubmission /></ProtectedPage>} />
       <Route path={"/early-repayment"} component={() => <ProtectedPage><EarlyRepaymentCalculator /></ProtectedPage>} />
       <Route path={"/restructure"} component={() => <ProtectedPage><LoanRestructuring /></ProtectedPage>} />
-
-      <Route path={"/"} component={() => <ProtectedPage><Dashboard /></ProtectedPage>} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

@@ -4,9 +4,12 @@
  */
 
 // Configuration
+const DEFAULT_LOCAL_API_URL = 'http://127.0.0.1:8000/api/v1';
+const DEFAULT_PRODUCTION_API_URL = 'https://admin.capexfinancialservices.org/api/v1';
+
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://127.0.0.1:8000/api/v1' : '/api/v1')
+  (import.meta.env.DEV ? DEFAULT_LOCAL_API_URL : DEFAULT_PRODUCTION_API_URL)
 ).replace(/\/+$/, '');
 const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
