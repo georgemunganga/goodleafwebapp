@@ -9,6 +9,8 @@ import { paymentService } from "@/lib/api-service";
 import { downloadLoanStatement } from "@/lib/loan-statement";
 import { toast } from "sonner";
 
+const REAPPLY_STORAGE_KEY = "loan_reapply_prefill";
+
 /**
  * Loan Details Page
  * Design: Mobile-native banking app style with consistent sizing
@@ -173,6 +175,12 @@ export default function LoanDetails() {
   const statusMeta = loanStatusMeta[loan.status];
   const statusLabel = statusMeta.label;
   const statusBadgeClass = statusMeta.badgeClass;
+  const isDeclined = loan.status === "rejected";
+  const canReapply = isDeclined;
+  const hasOpenedLoan = ["active", "rescheduled", "completed", "closed", "defaulted"].includes(loan.status);
+  const canUseEarlyRepaymentCalculator = loan.status === "active" || loan.status === "rescheduled";
+  const canRequestRestructuring = loan.status === "active" || loan.status === "rescheduled";
+  const canDownloadStatement = hasOpenedLoan;
 
   const nextPaymentLabel = loan.nextPaymentDate
     ? new Date(loan.nextPaymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -199,6 +207,30 @@ export default function LoanDetails() {
     } finally {
       setIsDownloadingStatement(false);
     }
+  };
+
+  const handleReapply = () => {
+    if (!loan) {
+      return;
+    }
+
+    const prefill = {
+      loanTypeId: loan.loanTypeId ?? 0,
+      loanCategoryId: loan.loanCategoryId ?? 0,
+      loanProductId: loan.loanProductId ?? 0,
+      institutionName: loan.institutionName ?? "",
+      loanAmount: loan.loanAmount,
+      repaymentMonths: loan.repaymentMonths,
+      sourceLoanId: loan.id,
+    };
+
+    try {
+      sessionStorage.setItem(REAPPLY_STORAGE_KEY, JSON.stringify(prefill));
+    } catch (storageError) {
+      console.error("Failed to save reapply prefill:", storageError);
+    }
+
+    setLocation("/apply");
   };
 
   return (
@@ -281,26 +313,35 @@ export default function LoanDetails() {
           </div>
         </div>
 
-        {/* Next Payment Card */}
-        <div className="bg-gradient-to-br from-[#2e7146]/10 to-[#1d4a2f]/10 rounded-2xl border-2 border-primary/20 p-5">
-          <p className="text-xs text-gray-600 mb-2 font-semibold">NEXT PAYMENT DUE</p>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.monthlyPayment.toLocaleString()}</p>
-              <p className="text-base text-gray-600 font-medium">{nextPaymentLabel}</p>
-            </div>
-            {statusMeta.allowPayment ? (
-              <Button
-                onClick={() => setLocation("/repayment")}
-                className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
-              >
-                Pay Now
-              </Button>
-            ) : (
-              <p className="text-sm text-gray-600 max-w-xs text-right">{statusMeta.description}</p>
-            )}
+        {isDeclined ? (
+          <div className="bg-red-50 rounded-2xl border border-red-200 p-5">
+            <p className="text-xs text-red-700 mb-2 font-semibold">DECLINE REASON</p>
+            <p className="text-lg font-bold text-red-900 mb-2">{loan.declineReason || "Loan application was declined."}</p>
+            <p className="text-sm text-red-800">
+              Review the reason above, update your information, and submit a new application.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="bg-gradient-to-br from-[#2e7146]/10 to-[#1d4a2f]/10 rounded-2xl border-2 border-primary/20 p-5">
+            <p className="text-xs text-gray-600 mb-2 font-semibold">NEXT PAYMENT DUE</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-2xl font-bold text-gray-900 mb-1">K{loan.monthlyPayment.toLocaleString()}</p>
+                <p className="text-base text-gray-600 font-medium">{nextPaymentLabel}</p>
+              </div>
+              {statusMeta.allowPayment ? (
+                <Button
+                  onClick={() => setLocation("/repayment")}
+                  className="h-12 bg-primary hover:bg-[#256339] text-white font-bold rounded-xl px-6 text-base"
+                >
+                  Pay Now
+                </Button>
+              ) : (
+                <p className="text-sm text-gray-600 max-w-xs text-right">{statusMeta.description}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Repayment Schedule */}
         {showRepaymentSchedule && (
@@ -340,30 +381,44 @@ export default function LoanDetails() {
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          <Button
-            onClick={() => setLocation("/early-repayment")}
-            variant="outline"
-            className="w-full h-12 border-2 border-primary text-primary font-bold text-base rounded-xl hover:bg-primary/5"
-          >
-            <TrendingDown className="w-5 h-5 mr-2" />
-            Early Repayment Calculator
-          </Button>
-          <Button
-            onClick={() => setLocation("/restructuring")}
-            variant="outline"
-            className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
-          >
-            Request Restructuring
-          </Button>
-          <Button
-            onClick={handleDownloadStatement}
-            variant="outline"
-            disabled={isDownloadingStatement}
-            className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            {isDownloadingStatement ? "Downloading..." : "Download Statement"}
-          </Button>
+          {canUseEarlyRepaymentCalculator && (
+            <Button
+              onClick={() => setLocation("/early-repayment")}
+              variant="outline"
+              className="w-full h-12 border-2 border-primary text-primary font-bold text-base rounded-xl hover:bg-primary/5"
+            >
+              <TrendingDown className="w-5 h-5 mr-2" />
+              Early Repayment Calculator
+            </Button>
+          )}
+          {canReapply && (
+            <Button
+              onClick={handleReapply}
+              className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
+            >
+              Reapply
+            </Button>
+          )}
+          {canRequestRestructuring && (
+            <Button
+              onClick={() => setLocation("/restructuring")}
+              variant="outline"
+              className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
+            >
+              Request Restructuring
+            </Button>
+          )}
+          {canDownloadStatement && (
+            <Button
+              onClick={handleDownloadStatement}
+              variant="outline"
+              disabled={isDownloadingStatement}
+              className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
+            >
+              <Download className="w-5 h-5 mr-2" />
+              {isDownloadingStatement ? "Downloading..." : "Download Statement"}
+            </Button>
+          )}
         </div>
       </main>
     </div>

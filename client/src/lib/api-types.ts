@@ -143,6 +143,8 @@ export interface LoanApplicationRequest {
   loanCategory: string;
   institutionName?: string;
   loanProductId?: number;
+  pin?: string;
+  verificationId?: string;
   loanAmount: number;
   repaymentMonths: number;
   purpose?: string;
@@ -252,7 +254,12 @@ export interface LoanDetails {
   loanId: string;
   userId: string;
   loanType: "personal" | "business";
+  loanTypeId?: number;
   loanCategory: string;
+  loanCategoryId?: number;
+  loanProductId?: number | null;
+  loanProductName?: string;
+  institutionName?: string | null;
   loanAmount: number;
   principalAmount: number;
   interestRate: number;
@@ -261,6 +268,9 @@ export interface LoanDetails {
   repaymentMonths: number;
   monthlyPayment: number;
   status: "submitted" | "approved_not_disbursed" | "active" | "rescheduled" | "completed" | "defaulted" | "pending" | "rejected" | "under_review" | "closed";
+  declineReason?: string | null;
+  applicationStage?: string | null;
+  applicationStatus?: string | null;
   approvalDate: string;
   firstPaymentDate: string;
   maturityDate: string;

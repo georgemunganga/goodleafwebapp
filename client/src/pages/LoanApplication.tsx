@@ -14,7 +14,7 @@ import { FormField } from '@/components/FormField';
 import { FormRecoveryModal } from '@/components/FormRecoveryModal';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { authService, loanService } from '@/lib/api-service';
+import { authService, loanService, userService } from '@/lib/api-service';
 import * as Types from '@/lib/api-types';
 import { PIN_SCHEMA } from '@/lib/validation-schemas';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
@@ -23,6 +23,7 @@ import { queryKeys } from '@/hooks/query-keys';
 import { toast } from 'sonner';
 
 type Step = 1 | 2 | 3;
+const REAPPLY_STORAGE_KEY = 'loan_reapply_prefill';
 
 // ============================================
 // VALIDATION SCHEMAS
@@ -155,6 +156,24 @@ export default function LoanApplication() {
     : null;
   const configErrorMessage =
     configError ?? (!configLoading && loanConfig.length === 0 ? 'No loan products are available right now.' : null);
+
+  const getReapplyPrefill = () => {
+    try {
+      const stored = sessionStorage.getItem(REAPPLY_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      console.error('Failed to read reapply prefill:', error);
+      return null;
+    }
+  };
+
+  const clearReapplyPrefill = () => {
+    try {
+      sessionStorage.removeItem(REAPPLY_STORAGE_KEY);
+    } catch (error) {
+      console.error('Failed to clear reapply prefill:', error);
+    }
+  };
 
   // Form persistence
   const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
@@ -571,6 +590,14 @@ export default function LoanApplication() {
 
   // Check for saved data on mount
   useEffect(() => {
+    const reapplyPrefill = getReapplyPrefill();
+    if (reapplyPrefill) {
+      setSavedDataInfo(null);
+      setShowRecoveryModal(false);
+      setRecoveryDecisionMade(true);
+      return;
+    }
+
     if (hasSavedData()) {
       const info = getSavedDataInfo();
       setSavedDataInfo(info);
@@ -604,6 +631,19 @@ export default function LoanApplication() {
   useEffect(() => {
     if (!recoveryDecisionMade || configLoading || loanConfig.length === 0) return;
     if (hasInitializedDefaultsRef.current) return;
+
+    const reapplyPrefill = getReapplyPrefill();
+    if (reapplyPrefill) {
+      const mappedData = mapSavedStep1Data(reapplyPrefill);
+      clearReapplyPrefill();
+
+      if (mappedData) {
+        hasInitializedDefaultsRef.current = true;
+        step1Form.reset(mappedData);
+        setCurrentStep(1);
+        return;
+      }
+    }
 
     const defaultSelection = getDefaultSelection();
     if (!defaultSelection) {
@@ -994,9 +1034,15 @@ export default function LoanApplication() {
         if (!isValid) return;
 
         const pin = step3AuthForm.getValues('pin');
+        const verification = await userService.verifyPIN(pin);
+        if (!verification?.verificationId) {
+          toast.error('PIN verification failed. Please try again.');
+          return;
+        }
+
         const applicationData = {
           ...baseApplicationData,
-          pin,
+          verificationId: verification.verificationId,
         };
 
         const response = await loanService.applyForLoan(applicationData as any);
