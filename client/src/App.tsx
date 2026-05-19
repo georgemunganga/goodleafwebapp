@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -16,7 +16,6 @@ import { ModalRenderer } from "./components/ModalRenderer";
 import AppLayout from "./components/AppLayout";
 
 // Pages
-import Home from "./pages/Home";
 import Login from "./pages/Login";
 import SetPin from "./pages/SetPin";
 import Dashboard from "./pages/Dashboard";
@@ -63,14 +62,10 @@ function RootRoute() {
   }
 
   if (isAuthenticated) {
-    return (
-      <ProtectedPage>
-        <Dashboard />
-      </ProtectedPage>
-    );
+    return <Redirect to="/dashboard" />;
   }
 
-  return <Home />;
+  return <Redirect to="/login" />;
 }
 
 function Router() {
