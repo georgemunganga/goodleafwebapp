@@ -14,7 +14,7 @@ export type DashboardLoanStatus =
 export type LoanHistoryStatusBucket = "active" | "repaid" | "rejected" | "pending";
 
 export function isActiveLoanStatus(status: LoanDetails["status"]): boolean {
-  return status === "active";
+  return status === "active" || status === "rescheduled";
 }
 
 export function isRepaidLoanStatus(status: LoanDetails["status"]): boolean {
@@ -37,7 +37,7 @@ export function isPendingLoanStatus(status: LoanDetails["status"]): boolean {
 export function getDashboardLoanStatus(status: LoanDetails["status"]): DashboardLoanStatus {
   if (status === "submitted") return "submitted";
   if (status === "approved_not_disbursed") return "approved_not_disbursed";
-  if (status === "active") return "active";
+  if (status === "active" || status === "rescheduled") return "active";
   if (status === "defaulted") return "overdue";
   if (isRepaidLoanStatus(status)) return "completed";
   if (status === "rejected") return "declined";
@@ -66,6 +66,8 @@ export function getLoanStatusLabel(status: LoanDetails["status"]): string {
       return "Pending";
     case "active":
       return "Active";
+    case "rescheduled":
+      return "Rescheduled";
     case "completed":
       return "Completed";
     case "closed":

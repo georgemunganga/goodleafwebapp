@@ -122,6 +122,13 @@ export default function LoanDetails() {
       actionDescription: "Use the actions below to pay, restructure, or download statements.",
       allowPayment: true,
     },
+    rescheduled: {
+      label: "Rescheduled",
+      badgeClass: "bg-blue-100 text-blue-700",
+      description: "Your repayment schedule has been rescheduled. Continue paying from the updated dates.",
+      actionDescription: "Use the actions below to pay or download statements.",
+      allowPayment: true,
+    },
     completed: {
       label: "Completed",
       badgeClass: "bg-gray-100 text-gray-700",
@@ -170,7 +177,7 @@ export default function LoanDetails() {
   const nextPaymentLabel = loan.nextPaymentDate
     ? new Date(loan.nextPaymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "-";
-  const showRepaymentSchedule = ["active", "completed", "closed", "defaulted"].includes(loan.status);
+  const showRepaymentSchedule = ["active", "rescheduled", "completed", "closed", "defaulted"].includes(loan.status);
 
   const handleDownloadStatement = async () => {
     if (!loan) {
@@ -217,7 +224,7 @@ export default function LoanDetails() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-500 font-semibold">LOAN STATUS</span>
-            <span className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold">{statusLabel}</span>
+            <span className={`px-4 py-2 rounded-full text-sm font-bold ${statusBadgeClass}`}>{statusLabel}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -342,7 +349,7 @@ export default function LoanDetails() {
             Early Repayment Calculator
           </Button>
           <Button
-            onClick={() => setLocation("/restructure")}
+            onClick={() => setLocation("/restructuring")}
             variant="outline"
             className="w-full h-12 border-2 border-gray-300 text-gray-900 font-bold text-base rounded-xl hover:bg-gray-50"
           >

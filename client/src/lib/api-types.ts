@@ -260,7 +260,7 @@ export interface LoanDetails {
   totalRepayment: number;
   repaymentMonths: number;
   monthlyPayment: number;
-  status: "submitted" | "approved_not_disbursed" | "active" | "completed" | "defaulted" | "pending" | "rejected" | "under_review" | "closed";
+  status: "submitted" | "approved_not_disbursed" | "active" | "rescheduled" | "completed" | "defaulted" | "pending" | "rejected" | "under_review" | "closed";
   approvalDate: string;
   firstPaymentDate: string;
   maturityDate: string;
@@ -269,8 +269,35 @@ export interface LoanDetails {
   amountRemaining: number;
   lastPaymentDate?: string;
   lastPaymentAmount?: number;
+  reschedulePolicy?: {
+    freeUntilDays: number;
+    feeRate: number;
+    feeBasis: string;
+    description: string;
+  };
+  reschedules?: LoanRescheduleEvent[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LoanRescheduleEvent {
+  id: number;
+  requestId: string;
+  requestType?: "reschedule" | "restructure";
+  status: "pending" | "applied" | "rejected";
+  source: string;
+  extensionDays: number;
+  newRepaymentMonths?: number | null;
+  newMonthlyPayment?: number | null;
+  newTotalRepayment?: number | null;
+  feeAmount: number;
+  feeRate: number;
+  oldMaturityDate?: string | null;
+  newMaturityDate?: string | null;
+  reason?: string | null;
+  createdAt: string;
+  appliedAt?: string | null;
+  rejectedAt?: string | null;
 }
 
 export interface RepaymentSchedule {
@@ -334,15 +361,26 @@ export interface EarlyRepaymentResponse {
 // ============ Loan Restructuring ============
 export interface LoanRestructuringRequest {
   loanId: string;
-  newRepaymentMonths: number;
+  requestType?: "reschedule" | "restructure";
+  extensionDays?: number;
+  newRepaymentMonths?: number;
   reason: string;
 }
 
 export interface LoanRestructuringResponse {
   success: boolean;
   requestId: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "applied" | "rejected";
   message: string;
+  requestType?: "reschedule" | "restructure";
+  extensionDays?: number;
+  newRepaymentMonths?: number;
+  newMonthlyPayment?: number;
+  newTotalRepayment?: number;
+  feeAmount?: number;
+  feeRate?: number;
+  oldMaturityDate?: string;
+  newMaturityDate?: string;
   newDetails?: LoanDetails;
 }
 

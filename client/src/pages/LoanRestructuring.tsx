@@ -18,7 +18,7 @@ export default function LoanRestructuring() {
   const [, setLocation] = useLocation();
   const [reason, setReason] = useState("");
   const [explanation, setExplanation] = useState("");
-  const [proposedTenure, setProposedTenure] = useState("24");
+  const [proposedMonths, setProposedMonths] = useState("6");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loanInfo, setLoanInfo] = useState<Types.LoanDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,17 +47,15 @@ export default function LoanRestructuring() {
     fetchLoan();
   }, []);
 
-  const newMonthlyPayment = useMemo(() => {
+  const estimatedFee = useMemo(() => {
     if (!loanInfo) return 0;
-    const tenure = parseInt(proposedTenure || "0", 10);
-    if (!tenure) return 0;
-    return loanInfo.amountRemaining / tenure;
-  }, [loanInfo, proposedTenure]);
-
-  const savings = useMemo(() => {
-    if (!loanInfo) return 0;
-    return loanInfo.monthlyPayment - newMonthlyPayment;
-  }, [loanInfo, newMonthlyPayment]);
+    const months = parseInt(proposedMonths || "0", 10);
+    const currentMonths = loanInfo.repaymentMonths || 1;
+    const estimatedExtensionDays = Math.max(0, months - currentMonths) * 30;
+    const freeUntilDays = loanInfo.reschedulePolicy?.freeUntilDays ?? 7;
+    const feeRate = loanInfo.reschedulePolicy?.feeRate ?? 2;
+    return estimatedExtensionDays > freeUntilDays ? loanInfo.principalAmount * (feeRate / 100) : 0;
+  }, [loanInfo, proposedMonths]);
 
   const reasons = [
     { value: "job-loss", label: "Job Loss / Reduced Income" },
@@ -73,7 +71,8 @@ export default function LoanRestructuring() {
     try {
       const response = await restructuringService.requestRestructuring({
         loanId: loanInfo.loanId,
-        newRepaymentMonths: parseInt(proposedTenure || "0", 10),
+        requestType: "restructure",
+        newRepaymentMonths: parseInt(proposedMonths || "0", 10),
         reason: `${reason}: ${explanation}`,
       });
 
@@ -98,7 +97,7 @@ export default function LoanRestructuring() {
           Request Submitted!
         </h2>
         <p className="text-slate-500 text-center mb-2 max-w-xs">
-          Your restructuring request has been received.
+          Your reschedule request has been received.
         </p>
         <p className="text-slate-500 text-center mb-8 max-w-xs text-sm">
           We'll review and respond within 3-5 business days.
@@ -144,7 +143,7 @@ export default function LoanRestructuring() {
         <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl mb-4">
           <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-blue-700">
-            Experiencing financial difficulty? We can help extend your tenure and reduce monthly payments.
+            Need a lower repayment? Request a restructure. Staff will preserve your paid history and re-amortize only the unpaid balance if approved.
           </p>
         </div>
 
@@ -203,18 +202,18 @@ export default function LoanRestructuring() {
             />
           </div>
 
-          {/* Proposed Tenure */}
+          {/* Proposed Term */}
           <div className="bg-white rounded-2xl border border-slate-100 p-4">
-            <h3 className="font-bold text-slate-900 mb-3 text-sm">Proposed New Tenure</h3>
+            <h3 className="font-bold text-slate-900 mb-3 text-sm">Proposed New Term</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Months</label>
+                <label className="block text-xs text-slate-500 mb-1">Repayment Months</label>
                 <Input
                   type="number"
-                  min={loanInfo?.repaymentMonths ? loanInfo.repaymentMonths + 1 : 1}
-                  max={60}
-                  value={proposedTenure}
-                  onChange={(e) => setProposedTenure(e.target.value)}
+                  min={1}
+                  max={120}
+                  value={proposedMonths}
+                  onChange={(e) => setProposedMonths(e.target.value)}
                   className="h-11 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0"
                   disabled={!loanInfo || isLoading}
                 />
@@ -222,12 +221,12 @@ export default function LoanRestructuring() {
 
               <div className="bg-green-50 rounded-xl p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs text-green-700">New Monthly Payment</span>
-                  <span className="font-bold text-green-700">K{newMonthlyPayment.toFixed(0)}</span>
+                  <span className="text-xs text-green-700">Estimated Fee</span>
+                  <span className="font-bold text-green-700">K{estimatedFee.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-green-700">Monthly Savings</span>
-                  <span className="font-bold text-green-700">K{savings.toFixed(0)}</span>
+                  <span className="text-xs text-green-700">How it works</span>
+                  <span className="font-bold text-green-700 text-right">Unpaid balance only</span>
                 </div>
               </div>
             </div>
