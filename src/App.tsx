@@ -2,7 +2,6 @@ import AuthGate from "@/components/AuthGate";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
-import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import LoanHistory from "./pages/LoanHistory";
@@ -24,9 +23,9 @@ function AppRouter() {
       <Route path={"/apply"} component={LoanApplication} />
 
       {/* App Pages with Layout */}
-      <ProtectedRoute path={"/"}>
-        <Home />
-      </ProtectedRoute>
+      <Route path={"/"}>
+        <Redirect to="/login" />
+      </Route>
 
       <ProtectedRoute path={"/dashboard"}>
         <AppLayout>
