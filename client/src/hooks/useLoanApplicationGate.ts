@@ -3,10 +3,18 @@ import { useUserLoans } from "./useLoanQueries";
 import type { LoanDetails } from "@/lib/api-types";
 
 /**
- * Loan statuses that block new applications
- * Users with loans in these statuses should not see "Apply for Loan" options
+ * Loan statuses that block new applications.
+ * The LMS enforces this too; this hook only prevents a bad user journey before submit.
  */
-const BLOCKED_STATUSES: LoanDetails["status"][] = ["submitted", "pending", "under_review", "approved_not_disbursed"];
+const BLOCKED_STATUSES: LoanDetails["status"][] = [
+  "submitted",
+  "pending",
+  "under_review",
+  "approved_not_disbursed",
+  "active",
+  "rescheduled",
+  "defaulted",
+];
 
 /**
  * Hook to determine if a user can apply for a new loan
@@ -22,7 +30,7 @@ export function useLoanApplicationGate() {
   const { data: loans = [], isLoading } = useUserLoans();
 
   const gateInfo = useMemo(() => {
-    // Find any loan that is in a blocked status (submitted, pending, or under review)
+    // Find any loan that is still in process or already open.
     const inProgressLoan = loans.find((loan) =>
       BLOCKED_STATUSES.includes(loan.status)
     ) || null;

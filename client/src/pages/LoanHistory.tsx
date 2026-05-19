@@ -33,6 +33,9 @@ export default function LoanHistory() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const loansQuery = useUserLoans();
   const { canApply, inProgressLoan } = useLoanApplicationGate();
+  const hasOpenBlockingLoan = inProgressLoan
+    ? ["active", "rescheduled", "defaulted"].includes(inProgressLoan.status)
+    : false;
   const isLoading = loansQuery.isLoading;
   const error = loansQuery.error
     ? loansQuery.error instanceof Error
@@ -249,13 +252,17 @@ export default function LoanHistory() {
               <div className="space-y-3">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-center gap-3">
                   <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                  <p className="text-sm text-amber-800">
+                    {hasOpenBlockingLoan
+                      ? "You already have an open loan. Apply again after it is closed."
+                      : "You have a loan application in progress"}
+                  </p>
                 </div>
                 <Button
                   onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                   className="rounded-xl bg-primary hover:bg-[#256339] text-white font-semibold h-12 px-6 text-base"
                 >
-                  View Application Status
+                  {hasOpenBlockingLoan ? "View Current Loan" : "View Application Status"}
                 </Button>
               </div>
             )}

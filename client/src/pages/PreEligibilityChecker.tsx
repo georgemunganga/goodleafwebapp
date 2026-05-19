@@ -23,6 +23,9 @@ export default function PreEligibilityChecker() {
   const [error, setError] = useState<string | null>(null);
   const { canApply, inProgressLoan } = useLoanApplicationGate();
   const { isAuthenticated } = useAuthContext();
+  const hasOpenBlockingLoan = inProgressLoan
+    ? ["active", "rescheduled", "defaulted"].includes(inProgressLoan.status)
+    : false;
   const backPath = isAuthenticated ? "/dashboard" : "/";
 
   const [formData, setFormData] = useState({
@@ -116,13 +119,17 @@ export default function PreEligibilityChecker() {
                   <div className="space-y-3">
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
                       <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                      <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                      <p className="text-sm text-amber-800">
+                        {hasOpenBlockingLoan
+                          ? "You already have an open loan. Apply again after it is closed."
+                          : "You have a loan application in progress"}
+                      </p>
                     </div>
                     <Button
                       onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                       className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
                     >
-                      View Application Status
+                      {hasOpenBlockingLoan ? "View Current Loan" : "View Application Status"}
                     </Button>
                   </div>
                 )}
@@ -156,13 +163,17 @@ export default function PreEligibilityChecker() {
                   <div className="space-y-3">
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
                       <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                      <p className="text-sm text-amber-800">You have a loan application in progress</p>
+                      <p className="text-sm text-amber-800">
+                        {hasOpenBlockingLoan
+                          ? "You already have an open loan. Apply again after it is closed."
+                          : "You have a loan application in progress"}
+                      </p>
                     </div>
                     <Button
                       onClick={() => setLocation(`/loans/${inProgressLoan?.id}`)}
                       className="w-full h-12 bg-primary hover:bg-[#256339] text-white font-bold text-base rounded-xl"
                     >
-                      View Application Status
+                      {hasOpenBlockingLoan ? "View Current Loan" : "View Application Status"}
                     </Button>
                   </div>
                 )}

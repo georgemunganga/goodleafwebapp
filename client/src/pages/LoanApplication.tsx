@@ -101,7 +101,15 @@ const FALLBACK_CONSTRAINTS: ProductConstraints = {
   repaymentCycleName: 'Monthly',
 };
 
-const BLOCKED_APPLICATION_STATUSES: Types.LoanDetails['status'][] = ['submitted', 'pending'];
+const BLOCKED_APPLICATION_STATUSES: Types.LoanDetails['status'][] = [
+  'submitted',
+  'pending',
+  'under_review',
+  'approved_not_disbursed',
+  'active',
+  'rescheduled',
+  'defaulted',
+];
 
 const parseDateSafe = (value?: string | null): Date | null => {
   if (!value) return null;
@@ -781,24 +789,43 @@ export default function LoanApplication() {
   const showNoProductsState = !showLoadingState && !showErrorState && availableLoanTypes.length === 0;
   const showApplyGate =
     isAuthenticated && (applicationCheckLoading || Boolean(applicationCheckError) || Boolean(existingApplication));
+  const hasOpenBlockingLoan = existingApplication
+    ? ['active', 'rescheduled', 'defaulted'].includes(existingApplication.status)
+    : false;
   const gateTitle = existingApplication
-    ? 'Loan Application Status'
+    ? hasOpenBlockingLoan
+      ? 'Open Loan Found'
+      : 'Loan Application Status'
     : applicationCheckError
       ? 'Unable to Confirm Status'
       : 'Checking Loan Status';
   const gateDescription = existingApplication
-    ? 'You already have a loan application in progress. We will update you once a decision is made.'
+    ? hasOpenBlockingLoan
+      ? 'You already have an open loan. Please settle or close the current loan before applying again.'
+      : 'You already have a loan application in progress. We will update you once a decision is made.'
     : applicationCheckError
       ? 'We could not confirm your current loan status. Please retry or return to your dashboard.'
       : 'We are verifying whether you have an active loan application.';
   const applicationStatusLabel =
-    existingApplication?.status === 'submitted' ? 'Submitted' : 'Under Review';
+    hasOpenBlockingLoan
+      ? existingApplication?.status === 'defaulted'
+        ? 'Defaulted'
+        : 'Open'
+      : existingApplication?.status === 'submitted'
+        ? 'Submitted'
+        : 'Under Review';
   const applicationBadgeClass =
-    existingApplication?.status === 'submitted'
+    hasOpenBlockingLoan
+      ? existingApplication?.status === 'defaulted'
+        ? 'bg-red-100 text-red-700'
+        : 'bg-green-100 text-green-700'
+      : existingApplication?.status === 'submitted'
       ? 'bg-amber-100 text-amber-800'
       : 'bg-blue-100 text-blue-700';
   const applicationMessage =
-    existingApplication?.status === 'submitted'
+    hasOpenBlockingLoan
+      ? 'New applications are disabled while this loan is open. You can apply again after it is fully settled or closed.'
+      : existingApplication?.status === 'submitted'
       ? 'Your application is submitted and waiting for review. Complete KYC to speed up approval.'
       : 'Your application is under review. We will notify you once a decision is made.';
 
@@ -1160,10 +1187,11 @@ export default function LoanApplication() {
           }
         } catch (error: any) {
           console.error('Registration error:', error);
-          // Proceed to KYC even if registration fails
-          toast.success('Application submitted. Please verify your email.');
-          clearForm();
-          setLocation('/kyc');
+          const errorMessage = error?.message || 'Registration failed. Please try again.';
+          toast.error(errorMessage);
+          if (error?.status === 409) {
+            refreshLoanCache();
+          }
         }
       }
     } catch (error: any) {

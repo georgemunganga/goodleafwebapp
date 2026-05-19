@@ -41,11 +41,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
       { path: "/loans", label: "My Loans", icon: FileText },
     ];
 
-    // If user has an in-progress loan, show "Application Status" instead of "Apply"
+    // If user has an in-progress or open loan, show that loan instead of another Apply entry.
     if (!canApply && inProgressLoan) {
+      const isOpenLoan = ["active", "rescheduled", "defaulted"].includes(inProgressLoan.status);
       baseItems.push({
         path: `/loans/${inProgressLoan.id}`,
-        label: "Application Status",
+        label: isOpenLoan ? "Current Loan" : "Application Status",
         icon: Clock,
       });
     } else {
