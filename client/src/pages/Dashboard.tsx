@@ -251,16 +251,6 @@ export default function Dashboard() {
       loan.displayStatus === "completed"
   );
   const isSubmittedOnlyUser = Boolean(inProgressLoan) && !hasEstablishedLoan;
-  const totalOutstanding = loans
-    .filter((loan) => loan.displayStatus === "active" || loan.displayStatus === "approved_not_disbursed")
-    .reduce((sum, loan) => sum + (loan.amountRemaining || 0), 0);
-  const primaryOpenLoan = activeLoan ?? approvedLoan;
-  const activeProgressWidth = primaryOpenLoan
-    ? ((primaryOpenLoan.amountPaid || 0) / (primaryOpenLoan.loanAmount || 1)) * 100
-    : 0;
-  const activeProgressPercent = primaryOpenLoan
-    ? Math.round(((primaryOpenLoan.amountPaid || 0) / (primaryOpenLoan.loanAmount || 1)) * 100)
-    : 0;
   const applicationStage =
     inProgressLoan?.displayStatus === "pending_approval" || isKycCompleted ? "review" : "kyc";
   const applicationSteps = inProgressLoan
@@ -291,6 +281,171 @@ export default function Dashboard() {
         },
       ]
     : [];
+  const latestDeclinedLoan = loans
+    .filter((loan) => loan.displayStatus === "declined")
+    .sort((a, b) => {
+      const timeA = parseDate(a.updatedAt)?.getTime() ?? parseDate(a.createdAt)?.getTime() ?? 0;
+      const timeB = parseDate(b.updatedAt)?.getTime() ?? parseDate(b.createdAt)?.getTime() ?? 0;
+      return timeB - timeA;
+    })[0];
+  const latestCompletedLoan = loans
+    .filter((loan) => loan.displayStatus === "completed")
+    .sort((a, b) => {
+      const timeA = parseDate(a.updatedAt)?.getTime() ?? parseDate(a.maturityDate)?.getTime() ?? 0;
+      const timeB = parseDate(b.updatedAt)?.getTime() ?? parseDate(b.maturityDate)?.getTime() ?? 0;
+      return timeB - timeA;
+    })[0];
+  const heroLoan =
+    overdueLoan ??
+    activeLoan ??
+    approvedLoan ??
+    inProgressLoan ??
+    latestDeclinedLoan ??
+    latestCompletedLoan ??
+    null;
+  const heroLoanStatus = heroLoan?.displayStatus;
+  const heroStatusContent = (() => {
+    if (!heroLoan || !heroLoanStatus) {
+      return {
+        eyebrow: "Welcome to Goodleaf",
+        title: "No Active Loan",
+        message: "Apply for a loan when you are ready.",
+        metricLabel: "Available Action",
+        metricValue: "Apply Now",
+        detailLabel: "Status",
+        detailValue: "Ready",
+        icon: Plus,
+        primaryAction: "Apply Now",
+        primaryPath: "/apply",
+        secondaryAction: "Loan Calculator",
+        secondaryPath: "/early-repayment",
+        progressWidth: 0,
+        progressLabel: "0% paid",
+      };
+    }
+
+    const progressWidth = Math.min(
+      100,
+      Math.max(0, ((heroLoan.amountPaid || 0) / (heroLoan.loanAmount || 1)) * 100),
+    );
+    const progressLabel = `${Math.round(progressWidth)}% paid`;
+
+    if (heroLoanStatus === "overdue") {
+      return {
+        eyebrow: "Payment Overdue",
+        title: heroLoan.loanId,
+        message: "Your loan has an overdue repayment. Pay now to avoid extra penalties.",
+        metricLabel: "Amount Due",
+        metricValue: formatCurrency(heroLoan.monthlyPayment || heroLoan.amountRemaining),
+        detailLabel: "Due Date",
+        detailValue: formatDate(heroLoan.nextPaymentDate, { month: "short", day: "numeric" }),
+        icon: AlertCircle,
+        primaryAction: "Pay Now",
+        primaryPath: "/repayment",
+        secondaryAction: "View Loan",
+        secondaryPath: `/loans/${heroLoan.id}`,
+        progressWidth,
+        progressLabel,
+      };
+    }
+
+    if (heroLoanStatus === "active") {
+      return {
+        eyebrow: "Current Open Loan",
+        title: formatCurrency(heroLoan.amountRemaining),
+        message: `${formatCurrency(heroLoan.monthlyPayment)} due on ${formatDate(heroLoan.nextPaymentDate, { month: "short", day: "numeric" })}.`,
+        metricLabel: "Amount Due",
+        metricValue: formatCurrency(heroLoan.monthlyPayment),
+        detailLabel: "Outstanding",
+        detailValue: formatCurrency(heroLoan.amountRemaining),
+        icon: CreditCard,
+        primaryAction: "Make Payment",
+        primaryPath: "/repayment",
+        secondaryAction: "View Loan",
+        secondaryPath: `/loans/${heroLoan.id}`,
+        progressWidth,
+        progressLabel,
+      };
+    }
+
+    if (heroLoanStatus === "approved_not_disbursed") {
+      return {
+        eyebrow: "Loan Approved",
+        title: heroLoan.loanId,
+        message: "Your loan has been approved and is waiting for disbursement.",
+        metricLabel: "Approved Amount",
+        metricValue: formatCurrency(heroLoan.loanAmount),
+        detailLabel: "Approved",
+        detailValue: formatDate(heroLoan.approvalDate, { month: "short", day: "numeric" }),
+        icon: CheckCircle2,
+        primaryAction: "View Loan",
+        primaryPath: `/loans/${heroLoan.id}`,
+        secondaryAction: "Support",
+        secondaryPath: "/help",
+        progressWidth: 100,
+        progressLabel: "Approved",
+      };
+    }
+
+    if (heroLoanStatus === "submitted" || heroLoanStatus === "pending_approval") {
+      return {
+        eyebrow: applicationStage === "kyc" ? "Application Submitted" : "Application In Review",
+        title: heroLoan.loanId,
+        message:
+          applicationStage === "kyc"
+            ? "Complete KYC to speed up your approval."
+            : "We are reviewing your application and will notify you soon.",
+        metricLabel: "Requested",
+        metricValue: formatCurrency(heroLoan.loanAmount),
+        detailLabel: "Submitted",
+        detailValue: formatDate(heroLoan.createdAt, { month: "short", day: "numeric" }),
+        icon: applicationStage === "kyc" ? ShieldCheck : Clock,
+        primaryAction: applicationStage === "kyc" ? "Complete KYC" : "View Status",
+        primaryPath: applicationStage === "kyc" ? "/kyc" : `/loans/${heroLoan.id}`,
+        secondaryAction: applicationStage === "kyc" ? "View Status" : "Get Help",
+        secondaryPath: applicationStage === "kyc" ? `/loans/${heroLoan.id}` : "/help",
+        progressWidth: applicationStage === "kyc" ? 35 : 65,
+        progressLabel: applicationStage === "kyc" ? "KYC needed" : "In review",
+      };
+    }
+
+    if (heroLoanStatus === "declined") {
+      return {
+        eyebrow: "Application Declined",
+        title: heroLoan.loanId,
+        message: heroLoan.declineReason || "Your application was declined. Review the decision and reapply when ready.",
+        metricLabel: "Requested",
+        metricValue: formatCurrency(heroLoan.loanAmount),
+        detailLabel: "Decision",
+        detailValue: formatDate(heroLoan.updatedAt || heroLoan.createdAt, { month: "short", day: "numeric" }),
+        icon: AlertCircle,
+        primaryAction: "View Reason",
+        primaryPath: `/loans/${heroLoan.id}`,
+        secondaryAction: "Reapply",
+        secondaryPath: "/apply",
+        progressWidth: 100,
+        progressLabel: "Decision made",
+      };
+    }
+
+    return {
+      eyebrow: "Loan Completed",
+      title: heroLoan.loanId,
+      message: "This loan is closed. You can review history or apply again.",
+      metricLabel: "Total Paid",
+      metricValue: formatCurrency(heroLoan.amountPaid || heroLoan.totalRepayment),
+      detailLabel: "Completed",
+      detailValue: formatDate(heroLoan.maturityDate || heroLoan.updatedAt, { month: "short", day: "numeric" }),
+      icon: CheckCircle,
+      primaryAction: "View History",
+      primaryPath: `/loans/${heroLoan.id}`,
+      secondaryAction: "Apply Again",
+      secondaryPath: "/apply",
+      progressWidth: 100,
+      progressLabel: "Completed",
+    };
+  })();
+  const HeroIcon = heroStatusContent.icon;
 
   // Generate recommendations based on real loan data
   const generateRecommendations = (): Recommendation[] => {
@@ -614,90 +769,56 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Hero Card */}
-          {isSubmittedOnlyUser && inProgressLoan ? (
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-white/70 text-sm mb-1">
-                    {applicationStage === "kyc" ? "Application Submitted" : "Application In Review"}
-                  </p>
-                  <p className="text-white text-2xl font-bold">{inProgressLoan.loanId}</p>
-                  <p className="text-white/80 text-sm mt-1">
-                    {applicationStage === "kyc"
-                      ? "Complete KYC to speed up your approval."
-                      : "We are reviewing your application and will notify you soon."}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                  {applicationStage === "kyc" ? (
-                    <ShieldCheck className="w-6 h-6 text-white" />
-                  ) : (
-                    <Clock className="w-6 h-6 text-white" />
-                  )}
-                </div>
+          {/* Status-aware hero card */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-white/70 text-sm mb-1">{heroStatusContent.eyebrow}</p>
+                <p className="text-white text-3xl font-bold">{heroStatusContent.title}</p>
+                <p className="text-white/80 text-sm mt-1">{heroStatusContent.message}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
-                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">Requested</p>
-                  <p className="text-white font-bold text-base">K{inProgressLoan.loanAmount.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
-                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">Submitted</p>
-                  <p className="text-white font-bold text-base">
-                    {formatDate(inProgressLoan.createdAt, { month: "short", day: "numeric" })}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {applicationStage === "kyc" ? (
-                  <Button
-                    onClick={() => setLocation("/kyc")}
-                    className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
-                  >
-                    Complete KYC
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => setLocation("/loans")}
-                    className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
-                  >
-                    View Status
-                  </Button>
-                )}
-                <Button
-                  onClick={() => setLocation(applicationStage === "kyc" ? "/loans" : "/help")}
-                  variant="outline"
-                  className="h-11 rounded-xl border-white/40 text-white hover:bg-white/10"
-                >
-                  {applicationStage === "kyc" ? "View Status" : "Get Help"}
-                </Button>
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <HeroIcon className="w-6 h-6 text-white" />
               </div>
             </div>
-          ) : (
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="text-white/70 text-sm mb-1">Total Outstanding</p>
-                  <p className="text-white text-4xl font-bold">K{totalOutstanding.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <CreditCard className="w-6 h-6 text-white" />
-                </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.metricLabel}</p>
+                <p className="text-white font-bold text-base">{heroStatusContent.metricValue}</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#28ca33] rounded-full transition-all"
-                    style={{ width: `${activeProgressWidth}%` }}
-                  ></div>
-                </div>
-                <span className="text-white text-sm font-medium">{activeProgressPercent}% paid</span>
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.detailLabel}</p>
+                <p className="text-white font-bold text-base">{heroStatusContent.detailValue}</p>
               </div>
             </div>
-          )}
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#28ca33] rounded-full transition-all"
+                  style={{ width: `${heroStatusContent.progressWidth}%` }}
+                />
+              </div>
+              <span className="text-white text-sm font-medium">{heroStatusContent.progressLabel}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                onClick={() => setLocation(heroStatusContent.primaryPath)}
+                className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
+              >
+                {heroStatusContent.primaryAction}
+              </Button>
+              <Button
+                onClick={() => setLocation(heroStatusContent.secondaryPath)}
+                variant="outline"
+                className="h-11 rounded-xl border-white/40 text-white hover:bg-white/10"
+              >
+                {heroStatusContent.secondaryAction}
+              </Button>
+            </div>
+          </div>
         </div>
       </header>
 
