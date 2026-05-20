@@ -121,7 +121,7 @@ export default function RepaymentSubmission() {
     e.preventDefault();
     if (!loanInfo) return;
     if (!selectedChannel || !selectedChannel.available) {
-      toast.error("Choose an available collection channel.");
+      toast.error("Choose an available payment method.");
       return;
     }
     if (proofRequired && !uploadedFile) {
@@ -304,15 +304,15 @@ export default function RepaymentSubmission() {
           </div>
         </div>
 
-        {/* Collection Channel */}
+        {/* Payment Method */}
         <div className="bg-white rounded-2xl border border-slate-100 p-4">
-          <h3 className="font-bold text-slate-900 mb-4">Choose Collection Channel</h3>
+          <h3 className="font-bold text-slate-900 mb-4">Choose Payment Method</h3>
 
           {channels.length === 0 && !isLoading && (
             <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl">
               <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700">
-                No repayment collection channels are configured yet. Contact Goodleaf before making payment.
+                No payment methods are available yet. Contact Goodleaf before making payment.
               </p>
             </div>
           )}
