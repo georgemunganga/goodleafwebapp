@@ -326,8 +326,28 @@ export interface RepaymentSchedule {
 export interface PaymentRequest {
   loanId: string;
   amount: number;
-  paymentMethod: "bank_transfer" | "mobile_money" | "card";
+  paymentMethod: string;
   reference?: string;
+  proof?: File;
+}
+
+export interface PaymentCollectionChannel {
+  id: number;
+  name: string;
+  code: string;
+  channel: "bank" | "mobile_money" | string;
+  provider?: string | null;
+  requiresProof: boolean;
+  requiresReference: boolean;
+  available: boolean;
+  instructions?: string | null;
+  account?: {
+    bankName?: string | null;
+    accountName?: string | null;
+    accountNumber?: string | null;
+    branchCode?: string | null;
+    referenceHint?: string | null;
+  };
 }
 
 export interface PaymentResponse {

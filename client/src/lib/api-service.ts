@@ -972,18 +972,63 @@ export const loanService = {
 
 // ============ Payments ============
 export const paymentService = {
+  async getCollectionChannels(): Promise<Types.PaymentCollectionChannel[]> {
+    if (USAGE_DEMO) {
+      return [
+        {
+          id: 1,
+          name: 'Bank Transfer',
+          code: 'bank_transfer',
+          channel: 'bank',
+          requiresProof: true,
+          requiresReference: true,
+          available: true,
+          instructions: 'Use your loan number as the payment reference.',
+          account: {
+            bankName: 'First National Bank Zambia',
+            accountName: 'Goodleaf Investments Limited',
+            accountNumber: '63168039494',
+            branchCode: 'Lusaka Main',
+            referenceHint: 'Use your loan number as the payment reference where possible.',
+          },
+        },
+      ];
+    }
+
+    const response = await apiCall<unknown>('/payments/collection-channels');
+    return extractDataArray<Types.PaymentCollectionChannel>(response);
+  },
+
   async submitPayment(request: Types.PaymentRequest): Promise<Types.PaymentResponse> {
     if (USAGE_DEMO) {
       return {
         success: true,
         transactionId: 'txn-' + Date.now(),
-        status: 'completed',
-        message: 'Payment submitted successfully',
+        status: request.proof ? 'pending' : 'completed',
+        message: request.proof ? 'Payment proof submitted successfully' : 'Payment submitted successfully',
       };
     }
+    if (request.proof) {
+      const formData = new FormData();
+      formData.append('loanId', request.loanId);
+      formData.append('amount', String(request.amount));
+      formData.append('paymentMethod', request.paymentMethod);
+      if (request.reference) {
+        formData.append('reference', request.reference);
+      }
+      formData.append('proof', request.proof);
+
+      return apiCallFormData('/payments/submit', formData);
+    }
+
     return apiCall('/payments/submit', {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        loanId: request.loanId,
+        amount: request.amount,
+        paymentMethod: request.paymentMethod,
+        reference: request.reference,
+      }),
     });
   },
 
