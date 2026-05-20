@@ -38,7 +38,6 @@ export default function RepaymentSubmission() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [channels, setChannels] = useState<Types.PaymentCollectionChannel[]>([]);
   const [selectedChannelCode, setSelectedChannelCode] = useState("");
-  const [reference, setReference] = useState("");
 
   // Form persistence
   const { saveForm, restoreForm, clearForm, hasSavedData, getSavedDataInfo } =
@@ -62,7 +61,6 @@ export default function RepaymentSubmission() {
         }
         setLoanInfo(activeLoan);
         setPaymentAmount(activeLoan.monthlyPayment.toFixed(2));
-        setReference(activeLoan.loanId);
         setChannels(collectionChannels);
         const firstAvailable = collectionChannels.find((channel) => channel.available) ?? collectionChannels[0];
         setSelectedChannelCode((current) => current || firstAvailable?.code || "");
@@ -94,11 +92,10 @@ export default function RepaymentSubmission() {
         paymentAmount,
         uploadedFileName,
         selectedChannelCode,
-        reference,
         timestamp: Date.now(),
       });
     }
-  }, [paymentAmount, uploadedFileName, selectedChannelCode, reference, isSubmitted, saveForm]);
+  }, [paymentAmount, uploadedFileName, selectedChannelCode, isSubmitted, saveForm]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -144,7 +141,7 @@ export default function RepaymentSubmission() {
         loanId: loanInfo.loanId,
         amount,
         paymentMethod: selectedChannel.code,
-        reference: reference.trim() || uploadedFile?.name || loanInfo.loanId,
+        reference: loanInfo.loanId,
         proof: uploadedFile ?? undefined,
       });
 
@@ -197,7 +194,6 @@ export default function RepaymentSubmission() {
     if (savedData) {
       setPaymentAmount(savedData.paymentAmount || "916.67");
       setSelectedChannelCode(savedData.selectedChannelCode || selectedChannelCode);
-      setReference(savedData.reference || reference);
       setUploadedFile(null);
       setUploadedFileName(null);
       if (savedData.uploadedFileName) {
@@ -211,7 +207,6 @@ export default function RepaymentSubmission() {
     clearForm();
     setPaymentAmount("916.67");
     setSelectedChannelCode("");
-    setReference("");
     setUploadedFile(null);
     setUploadedFileName(null);
     setShowRecoveryModal(false);
@@ -350,7 +345,7 @@ export default function RepaymentSubmission() {
                       <p className="text-xs text-slate-500">
                         {channel.available
                           ? channel.requiresProof
-                            ? "Proof required before admin approval"
+                            ? "Upload proof of payment for approval"
                             : "Posts immediately"
                           : "Admin has not configured account details yet"}
                       </p>
@@ -424,21 +419,6 @@ export default function RepaymentSubmission() {
               {selectedChannel.instructions && (
                 <p className="text-xs text-slate-600">{selectedChannel.instructions}</p>
               )}
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  Payment Reference
-                </label>
-                <Input
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                  placeholder={selectedChannel.account?.referenceHint || "Receipt or transfer reference"}
-                  className="h-11 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-0"
-                />
-                <p className="text-xs text-slate-500">
-                  Enter the transfer receipt number or use your loan number if the channel asks for a reference.
-                </p>
-              </div>
             </div>
           )}
         </div>
@@ -481,7 +461,7 @@ export default function RepaymentSubmission() {
           <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl">
             <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-blue-700">
-              Choose an admin-configured collection channel, upload your receipt, and Goodleaf will approve it before posting the repayment to your loan.
+              Proof of payment is required. Goodleaf will check it first, then update your loan balance.
             </p>
           </div>
 
