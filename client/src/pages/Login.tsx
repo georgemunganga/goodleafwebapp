@@ -184,7 +184,7 @@ export default function Login() {
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
                   <span className="text-sm font-semibold">✓</span>
                 </div>
-                <p>Quick approvhal process</p>
+                <p>Quick approval process</p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
