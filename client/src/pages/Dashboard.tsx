@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { Plus, ArrowUpRight, Clock, CheckCircle2, Bell, ChevronRight, ChevronDown, Wallet, FileText, Calculator, CreditCard, AlertCircle, CheckCircle, Lightbulb, TrendingUp, DollarSign, Calendar, ShieldCheck, Circle, LifeBuoy, User } from "lucide-react";
 import { PageSkeletonLoader, CardSkeletonLoader } from "@/components/ui/skeleton-loader";
 import { useUserLoans } from "@/hooks/useLoanQueries";
+import { usePaymentHistory } from "@/hooks/usePaymentQueries";
 import { useNotificationBadges } from "@/hooks/useNotificationBadges";
 import { useKycStatus, useUserProfile } from "@/hooks/useUserQueries";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -303,6 +304,11 @@ export default function Dashboard() {
     latestDeclinedLoan ??
     latestCompletedLoan ??
     null;
+  const heroLoanForPayments =
+    heroLoan && (heroLoan.displayStatus === "active" || heroLoan.displayStatus === "overdue")
+      ? heroLoan
+      : null;
+  const paymentHistoryQuery = usePaymentHistory(heroLoanForPayments?.id?.toString() ?? "");
   const heroLoanStatus = heroLoan?.displayStatus;
   const heroStatusContent = (() => {
     if (!heroLoan || !heroLoanStatus) {
@@ -446,6 +452,28 @@ export default function Dashboard() {
     };
   })();
   const HeroIcon = heroStatusContent.icon;
+  const formatDateTime = (value?: string | null): string => {
+    const date = parseDate(value);
+    if (!date) return "-";
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+  const pendingPaymentApproval = useMemo(() => {
+    const history = paymentHistoryQuery.data ?? [];
+
+    return history
+      .filter((payment) => payment.status === "pending")
+      .sort((a, b) => {
+        const timeA = parseDate(a.date)?.getTime() ?? 0;
+        const timeB = parseDate(b.date)?.getTime() ?? 0;
+        return timeB - timeA;
+      })[0] ?? null;
+  }, [paymentHistoryQuery.data]);
 
   // Generate recommendations based on real loan data
   const generateRecommendations = (): Recommendation[] => {
@@ -770,53 +798,77 @@ export default function Dashboard() {
           </div>
 
           {/* Status-aware hero card */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-white/70 text-sm mb-1">{heroStatusContent.eyebrow}</p>
-                <p className="text-white text-3xl font-bold">{heroStatusContent.title}</p>
-                <p className="text-white/80 text-sm mt-1">{heroStatusContent.message}</p>
+          <div className="relative overflow-hidden bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 space-y-4">
+            {pendingPaymentApproval && (
+              <div className="absolute inset-0 z-10 flex items-start justify-center bg-[#163824]/72 backdrop-blur-[3px]">
+                <div className="mx-4 mt-4 w-full rounded-2xl border border-white/15 bg-white/14 px-4 py-4 shadow-2xl">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-amber-400/20">
+                      <Clock className="h-5 w-5 text-amber-200" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/90">
+                        Awaiting Goodleaf Payment Approval
+                      </p>
+                      <p className="mt-1 text-base font-bold text-white">
+                        Approval pending for {formatCurrency(pendingPaymentApproval.amount)}
+                      </p>
+                      <p className="mt-1 text-sm text-white/80">
+                        Submitted on {formatDateTime(pendingPaymentApproval.date)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <HeroIcon className="w-6 h-6 text-white" />
+            )}
+            <div className={pendingPaymentApproval ? "pointer-events-none select-none blur-[2px] opacity-45" : ""}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-white/70 text-sm mb-1">{heroStatusContent.eyebrow}</p>
+                  <p className="text-white text-3xl font-bold">{heroStatusContent.title}</p>
+                  <p className="text-white/80 text-sm mt-1">{heroStatusContent.message}</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <HeroIcon className="w-6 h-6 text-white" />
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
-                <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.metricLabel}</p>
-                <p className="text-white font-bold text-base">{heroStatusContent.metricValue}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.metricLabel}</p>
+                  <p className="text-white font-bold text-base">{heroStatusContent.metricValue}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.detailLabel}</p>
+                  <p className="text-white font-bold text-base">{heroStatusContent.detailValue}</p>
+                </div>
               </div>
-              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
-                <p className="text-white/70 text-xs uppercase tracking-wide mb-1">{heroStatusContent.detailLabel}</p>
-                <p className="text-white font-bold text-base">{heroStatusContent.detailValue}</p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#28ca33] rounded-full transition-all"
-                  style={{ width: `${heroStatusContent.progressWidth}%` }}
-                />
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#28ca33] rounded-full transition-all"
+                    style={{ width: `${heroStatusContent.progressWidth}%` }}
+                  />
+                </div>
+                <span className="text-white text-sm font-medium">{heroStatusContent.progressLabel}</span>
               </div>
-              <span className="text-white text-sm font-medium">{heroStatusContent.progressLabel}</span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                onClick={() => setLocation(heroStatusContent.primaryPath)}
-                className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
-              >
-                {heroStatusContent.primaryAction}
-              </Button>
-              <Button
-                onClick={() => setLocation(heroStatusContent.secondaryPath)}
-                variant="outline"
-                className="h-11 rounded-xl border-white/40 text-white hover:bg-white/10"
-              >
-                {heroStatusContent.secondaryAction}
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={() => setLocation(heroStatusContent.primaryPath)}
+                  className="h-11 rounded-xl bg-white text-primary hover:bg-white/90 font-semibold"
+                >
+                  {heroStatusContent.primaryAction}
+                </Button>
+                <Button
+                  onClick={() => setLocation(heroStatusContent.secondaryPath)}
+                  variant="outline"
+                  className="h-11 rounded-xl border-white/40 text-white hover:bg-white/10"
+                >
+                  {heroStatusContent.secondaryAction}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
